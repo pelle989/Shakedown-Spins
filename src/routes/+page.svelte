@@ -2620,15 +2620,45 @@
 
   @media (max-width: 860px) {
     .shell {
-      padding: 14px 12px 28px;
+      padding: 14px 12px calc(118px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .album-card {
+      grid-template-rows: auto auto;
+      gap: 14px;
+    }
+
+    .album-display {
+      min-height: clamp(320px, 58vh, 460px);
+    }
+
+    .album-stage {
+      inset: 12px;
+      padding: 10px;
     }
 
     .queue-column {
       gap: 10px;
+      padding-bottom: 8px;
     }
 
     .queue-panel {
       gap: 8px;
+    }
+
+    .random-button {
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      z-index: 40;
+      min-height: 78px;
+      padding: 16px 18px 18px;
+      font-size: 1.95rem;
+      border-radius: 18px;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 213, 161, 0.2),
+        0 18px 28px rgba(54, 12, 7, 0.28);
     }
 
     .bottom-strip {
@@ -2637,7 +2667,7 @@
     }
 
     .art-slot {
-      width: min(92vw, 520px);
+      width: min(78vw, 340px);
     }
 
     .queue-section,
@@ -2652,6 +2682,45 @@
     .source-actions {
       flex-direction: column;
       align-items: flex-start;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .shell {
+      padding: 12px 10px calc(108px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .album-display {
+      min-height: clamp(290px, 50vh, 380px);
+    }
+
+    .album-stage {
+      inset: 10px;
+      padding: 8px;
+    }
+
+    .art-slot {
+      width: min(76vw, 300px);
+      border-width: 3px;
+    }
+
+    .art-slot .cover-art {
+      width: min(90%, 270px);
+      height: min(90%, 270px);
+    }
+
+    .random-button {
+      left: 10px;
+      right: 10px;
+      bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+      min-height: 72px;
+      font-size: 1.72rem;
+      letter-spacing: 0.1em;
+    }
+
+    .lcd-copy {
+      min-height: 0;
+      padding: 15px;
     }
   }
 </style>
