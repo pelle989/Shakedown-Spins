@@ -50,17 +50,26 @@ export async function listStashes(): Promise<FeedData> {
     return { stashes: [], databaseAvailable: false };
   }
 
-  const result = await pool.query<SummaryRow>(
-    `select id, name, album_count, created_at, stash_preview_json
-     from stashes
-     order by created_at desc
-     limit 10`
-  );
+  try {
+    const result = await pool.query<SummaryRow>(
+      `select id, name, album_count, created_at, stash_preview_json
+       from stashes
+       order by created_at desc
+       limit 10`
+    );
 
-  return {
-    stashes: result.rows.map(mapSummary),
-    databaseAvailable: true
-  };
+    return {
+      stashes: result.rows.map(mapSummary),
+      databaseAvailable: true
+    };
+  } catch (error) {
+    console.error('Failed to list stashes:', error);
+
+    return {
+      stashes: [],
+      databaseAvailable: false
+    };
+  }
 }
 
 export async function getStash(id: string): Promise<LoadedStash | null> {
