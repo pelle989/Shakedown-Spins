@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5efe6;
+        --card: #fffaf3;
+        --ink: #30251b;
+        --muted: #7a6752;
+        --line: #dcc8af;
+        --accent: #8a5a23;
+        --accent-strong: #6f4212;
+        --danger: #8f2f2f;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: linear-gradient(180deg, #efe5d7 0%, var(--bg) 100%);
+        color: var(--ink);
+        font-family: Georgia, "Times New Roman", serif;
+      }
+
+      .app {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 18px 14px 36px;
+      }
+
+      .hero {
+        padding: 18px 0 10px;
+      }
+
+      .hero h1 {
+        margin: 0 0 6px;
+        font-size: 30px;
+        line-height: 1.1;
+        font-weight: 400;
+      }
+
+      .hero p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.45;
+      }
+
+      .toolbar {
+        display: flex;
+        gap: 10px;
+        margin: 16px 0;
+      }
+
+      .toolbar button,
+      .actions button,
+      .actions a,
+      .sheet-link {
+        appearance: none;
+        border: 1px solid var(--accent);
+        background: var(--card);
+        color: var(--accent-strong);
+        border-radius: 10px;
+        padding: 11px 14px;
+        text-decoration: none;
+        font-size: 15px;
+        line-height: 1;
+      }
+
+      .toolbar button.primary,
+      .actions button.primary {
+        background: var(--accent);
+        color: #fff7ef;
+      }
+
+      .panel {
+        background: rgba(255, 250, 243, 0.92);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 16px;
+        box-shadow: 0 12px 40px rgba(79, 55, 28, 0.08);
+      }
+
+      .status {
+        min-height: 22px;
+        margin: 0 0 14px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .status.error {
+        color: var(--danger);
+      }
+
+      .status.success {
+        color: #2c6632;
+      }
+
+      .show-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .show-card {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: #fffdf9;
+        padding: 14px;
+      }
+
+      .show-card.hidden {
+        opacity: 0.72;
+      }
+
+      .show-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-start;
+      }
+
+      .show-date {
+        color: var(--accent);
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .show-venue {
+        margin: 5px 0 4px;
+        font-size: 22px;
+        line-height: 1.2;
+      }
+
+      .show-meta {
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.45;
+      }
+
+      .tag {
+        display: inline-block;
+        padding: 5px 8px;
+        border-radius: 999px;
+        background: #f0dfc9;
+        color: var(--accent-strong);
+        font-size: 12px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      .show-actions {
+        margin-top: 12px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .show-actions button {
+        appearance: none;
+        border: 1px solid var(--line);
+        background: #fff7ef;
+        color: var(--ink);
+        border-radius: 10px;
+        padding: 9px 12px;
+        font-size: 14px;
+      }
+
+      .editor-shell {
+        display: none;
+      }
+
+      .editor-shell.open {
+        display: block;
+      }
+
+      .editor-shell h2 {
+        margin: 0 0 6px;
+        font-size: 24px;
+        font-weight: 400;
+      }
+
+      .editor-shell p {
+        margin: 0 0 16px;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .field {
+        margin-bottom: 12px;
+      }
+
+      .field label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+
+      .field input {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px 13px;
+        font-size: 16px;
+        color: var(--ink);
+        background: #fff;
+      }
+
+      .checkbox-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 14px 0 4px;
+      }
+
+      .checkbox-row input {
+        width: 18px;
+        height: 18px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 18px;
+      }
+
+      .empty {
+        padding: 14px 0 4px;
+        color: var(--muted);
+        font-style: italic;
+      }
+
+      @media (max-width: 620px) {
+        .hero h1 {
+          font-size: 26px;
+        }
+
+        .show-top {
+          flex-direction: column;
+        }
+
+        .show-venue {
+          font-size: 19px;
+        }
+
+        .toolbar,
+        .actions {
+          flex-direction: column;
+        }
+
+        .toolbar button,
+        .actions button,
+        .actions a {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="hero">
+        <h1>Show Admin</h1>
+        <p>Review current entries, fix mistakes, hide shows from the public feed, or delete rows when needed.</p>
+      </div>
+
+      <div class="toolbar">
+        <button class="primary" type="button" onclick="loadShows()">Refresh Shows</button>
+      </div>
+
+      <div id="status" class="status">Loading shows...</div>
+
+      <div class="panel" id="listPanel">
+        <div id="showList" class="show-list"></div>
+      </div>
+
+      <div class="panel editor-shell" id="editorPanel">
+        <h2>Edit Show</h2>
+        <p id="editorSubhead"></p>
+
+        <form id="editForm" onsubmit="saveCurrentShow(event)">
+          <input type="hidden" id="entryId">
+
+          <div class="field">
+            <label for="date">Date</label>
+            <input id="date" type="date" required>
+          </div>
+
+          <div class="field">
+            <label for="time">Time</label>
+            <input id="time" type="text" placeholder="7:30 PM">
+          </div>
+
+          <div class="field">
+            <label for="venue">Venue</label>
+            <input id="venue" type="text" required>
+          </div>
+
+          <div class="field">
+            <label for="cityState">City, State</label>
+            <input id="cityState" type="text" placeholder="Nashville, TN">
+          </div>
+
+          <div class="field">
+            <label for="url">URL</label>
+            <input id="url" type="url" placeholder="https://example.com/tickets">
+          </div>
+
+          <label class="checkbox-row">
+            <input id="hidden" type="checkbox">
+            <span>Hide this show from the public feed</span>
+          </label>
+
+          <div class="actions">
+            <button class="primary" type="submit">Save Changes</button>
+            <button type="button" onclick="closeEditor()">Cancel</button>
+            <button type="button" onclick="toggleHiddenFromEditor()">Toggle Hidden</button>
+            <button type="button" onclick="deleteCurrentShow()">Delete Entry</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      var state = {
+        shows: [],
+        currentShow: null
+      };
+
+      function setStatus(message, type) {
+        var node = document.getElementById('status');
+        node.textContent = message || '';
+        node.className = 'status' + (type ? ' ' + type : '');
+      }
+
+      function loadShows() {
+        setStatus('Loading shows...');
+        closeEditor(false);
+
+        google.script.run
+          .withSuccessHandler(function(shows) {
+            state.shows = Array.isArray(shows) ? shows : [];
+            renderShows();
+            setStatus(state.shows.length ? 'Shows loaded.' : 'No show rows found.', state.shows.length ? 'success' : '');
+          })
+          .withFailureHandler(function(error) {
+            setStatus(error && error.message ? error.message : 'Could not load shows.', 'error');
+          })
+          .getShows();
+      }
+
+      function renderShows() {
+        var list = document.getElementById('showList');
+        list.innerHTML = '';
+
+        if (!state.shows.length) {
+          var empty = document.createElement('div');
+          empty.className = 'empty';
+          empty.textContent = 'No shows available yet.';
+          list.appendChild(empty);
+          return;
+        }
+
+        state.shows.forEach(function(show) {
+          var card = document.createElement('div');
+          card.className = 'show-card' + (show.hidden ? ' hidden' : '');
+
+          var top = document.createElement('div');
+          top.className = 'show-top';
+
+          var meta = document.createElement('div');
+          var date = document.createElement('div');
+          date.className = 'show-date';
+          date.textContent = show.dateLabel || 'No date';
+          meta.appendChild(date);
+
+          var venue = document.createElement('div');
+          venue.className = 'show-venue';
+          venue.textContent = show.venue || '(No venue)';
+          meta.appendChild(venue);
+
+          var city = document.createElement('div');
+          city.className = 'show-meta';
+          city.textContent = [show.cityState, show.time].filter(Boolean).join(' • ') || 'No city or time';
+          meta.appendChild(city);
+
+          top.appendChild(meta);
+
+          if (show.hidden) {
+            var hiddenTag = document.createElement('div');
+            hiddenTag.className = 'tag';
+            hiddenTag.textContent = 'Hidden';
+            top.appendChild(hiddenTag);
+          }
+
+          card.appendChild(top);
+
+          var actions = document.createElement('div');
+          actions.className = 'show-actions';
+
+          actions.appendChild(makeButton('Edit', function() {
+            openEditor(show.entryId);
+          }));
+
+          actions.appendChild(makeButton(show.hidden ? 'Unhide' : 'Hide', function() {
+            toggleHidden(show.entryId, !show.hidden);
+          }));
+
+          if (show.url) {
+            var link = document.createElement('a');
+            link.href = show.url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.className = 'sheet-link';
+            link.textContent = 'Open Link';
+            actions.appendChild(link);
+          }
+
+          actions.appendChild(makeButton('Delete', function() {
+            deleteShow(show.entryId);
+          }));
+
+          card.appendChild(actions);
+          list.appendChild(card);
+        });
+      }
+
+      function makeButton(label, onClick) {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        button.addEventListener('click', onClick);
+        return button;
+      }
+
+      function openEditor(entryId) {
+        var show = findShow(entryId);
+
+        if (!show) {
+          setStatus('That entry could not be found.', 'error');
+          return;
+        }
+
+        state.currentShow = show;
+        document.getElementById('entryId').value = show.entryId;
+        document.getElementById('date').value = show.date || '';
+        document.getElementById('time').value = show.time || '';
+        document.getElementById('venue').value = show.venue || '';
+        document.getElementById('cityState').value = show.cityState || '';
+        document.getElementById('url').value = show.url || '';
+        document.getElementById('hidden').checked = !!show.hidden;
+        document.getElementById('editorSubhead').textContent = show.venue || 'Edit entry';
+        document.getElementById('editorPanel').classList.add('open');
+        window.scrollTo(0, Math.max(document.getElementById('editorPanel').offsetTop - 10, 0));
+      }
+
+      function closeEditor(clearState) {
+        if (clearState !== false) {
+          state.currentShow = null;
+        }
+
+        document.getElementById('editorPanel').classList.remove('open');
+      }
+
+      function saveCurrentShow(event) {
+        event.preventDefault();
+
+        var payload = {
+          entryId: document.getElementById('entryId').value,
+          date: document.getElementById('date').value,
+          time: document.getElementById('time').value,
+          venue: document.getElementById('venue').value,
+          cityState: document.getElementById('cityState').value,
+          url: document.getElementById('url').value,
+          hidden: document.getElementById('hidden').checked
+        };
+
+        setStatus('Saving changes...');
+
+        google.script.run
+          .withSuccessHandler(function() {
+            setStatus('Changes saved.', 'success');
+            loadShows();
+          })
+          .withFailureHandler(function(error) {
+            setStatus(error && error.message ? error.message : 'Could not save changes.', 'error');
+          })
+          .saveShow(payload);
+      }
+
+      function toggleHidden(entryId, hidden) {
+        setStatus(hidden ? 'Hiding show...' : 'Unhiding show...');
+
+        google.script.run
+          .withSuccessHandler(function() {
+            setStatus(hidden ? 'Show hidden.' : 'Show unhidden.', 'success');
+            loadShows();
+          })
+          .withFailureHandler(function(error) {
+            setStatus(error && error.message ? error.message : 'Could not update hidden state.', 'error');
+          })
+          .hideShow(entryId, hidden);
+      }
+
+      function toggleHiddenFromEditor() {
+        var entryId = document.getElementById('entryId').value;
+        var nextHidden = !document.getElementById('hidden').checked;
+        toggleHidden(entryId, nextHidden);
+      }
+
+      function deleteShow(entryId) {
+        if (!window.confirm('Delete this entry? This removes the row from the sheet.')) {
+          return;
+        }
+
+        setStatus('Deleting entry...');
+
+        google.script.run
+          .withSuccessHandler(function() {
+            setStatus('Entry deleted.', 'success');
+            loadShows();
+          })
+          .withFailureHandler(function(error) {
+            setStatus(error && error.message ? error.message : 'Could not delete entry.', 'error');
+          })
+          .deleteShow(entryId);
+      }
+
+      function deleteCurrentShow() {
+        var entryId = document.getElementById('entryId').value;
+        deleteShow(entryId);
+      }
+
+      function findShow(entryId) {
+        for (var i = 0; i < state.shows.length; i += 1) {
+          if (state.shows[i].entryId === entryId) {
+            return state.shows[i];
+          }
+        }
+
+        return null;
+      }
+
+      loadShows();
+    </script>
+  </body>
+</html>
