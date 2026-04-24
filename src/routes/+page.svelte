@@ -44,9 +44,6 @@
   let filterDialPage = $state({ genre: 0, decade: 0 });
   let filterTouchStartX = $state<number | null>(null);
   let stashName = $state('');
-  let powerOn = $state(true);
-  let tunerPosition = $state(58);
-  let tuningKnobAngle = $state(18);
   const stashTimestampFormatter = new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
@@ -413,17 +410,6 @@
     expandedFilterDial = null;
   }
 
-  function togglePower() {
-    powerOn = !powerOn;
-  }
-
-  function nudgeTuner() {
-    const direction = Math.random() < 0.5 ? -1 : 1;
-    const distance = 4 + Math.floor(Math.random() * 8);
-    tunerPosition = Math.max(8, Math.min(92, tunerPosition + direction * distance));
-    tuningKnobAngle = Math.max(-34, Math.min(34, tuningKnobAngle + direction * (8 + Math.floor(Math.random() * 7))));
-  }
-
   function formatStashTimestamp(value: string) {
     return stashTimestampFormatter.format(new Date(value));
   }
@@ -491,6 +477,14 @@
     randomizerState = result.state;
     currentPick = result.pick;
     startTextShuffle(result.pick.title, result.pick.artist);
+
+    if (typeof window !== 'undefined') {
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    }
+
     try {
       await Promise.all([
         loadArt(result.pick),
@@ -619,62 +613,6 @@
 <div class="page">
   <div class="grain"></div>
   <main class="shell">
-    <section class="hero">
-      <div class="shop-sign panel">
-        <div class="sign-ornament left">
-          <button
-            type="button"
-            class:off={!powerOn}
-            class="power-button"
-            aria-label={powerOn ? 'Turn header power off' : 'Turn header power on'}
-            aria-pressed={powerOn}
-            onclick={togglePower}
-          ></button>
-          <span class="control-label">Power</span>
-        </div>
-        <div class="marquee-copy">
-          <div class="brand-block">
-            <h1 class:powered={powerOn}>Turntable Station</h1>
-          </div>
-          <div class="receiver-divider" aria-hidden="true"></div>
-          <div class="radio-scale" style={`--tuner-position:${tunerPosition}%`} aria-hidden="true">
-            <div class="band-row">
-              <span class="band-label">FM</span>
-              <span>88</span>
-              <span>92</span>
-              <span>96</span>
-              <span>100</span>
-              <span>104</span>
-              <span>108</span>
-              <span class="frequency-spacer"></span>
-              <span class="band-unit">MHz</span>
-            </div>
-            <div class="band-row">
-              <span class="band-label">AM</span>
-              <span>530</span>
-              <span>600</span>
-              <span>700</span>
-              <span>800</span>
-              <span>1000</span>
-              <span>1200</span>
-              <span>1600</span>
-              <span class="band-unit">kHz</span>
-            </div>
-          </div>
-        </div>
-        <div class="sign-ornament right">
-          <button
-            type="button"
-            class="tuning-knob"
-            aria-label="Nudge tuner"
-            style={`--knob-angle:${tuningKnobAngle}deg`}
-            onclick={nudgeTuner}
-          ></button>
-          <span class="control-label">Tuning</span>
-        </div>
-      </div>
-    </section>
-
     <section class="grid">
       <section class="panel player-panel turntable-panel">
         <article class="album-card">
@@ -1100,440 +1038,6 @@
     pointer-events: none;
   }
 
-  .hero {
-    margin-bottom: 10px;
-  }
-
-  .shop-sign {
-    min-height: 64px;
-    display: grid;
-    grid-template-columns: 82px minmax(0, 1fr) 74px;
-    align-items: center;
-    padding: 6px 8px;
-    overflow: hidden;
-    background:
-      radial-gradient(90% 120% at 50% -55%, rgba(255, 255, 255, 0.66), transparent 44%),
-      repeating-linear-gradient(
-        0deg,
-        rgba(255, 255, 255, 0.18) 0 1px,
-        rgba(92, 86, 78, 0.13) 1px 2px,
-        rgba(255, 255, 255, 0.05) 2px 4px
-      ),
-      linear-gradient(180deg, #ebe7de 0%, #d2cbc0 18%, #aaa297 49%, #c7c0b5 76%, #f0ece4 100%);
-    border: 1px solid rgba(38, 30, 23, 0.82);
-    border-radius: 10px;
-    box-shadow:
-      inset 0 2px 0 rgba(255, 255, 255, 0.72),
-      inset 0 -3px 5px rgba(34, 28, 22, 0.34),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.24),
-      0 14px 22px rgba(22, 10, 5, 0.16);
-  }
-
-  .sign-ornament {
-    position: relative;
-    overflow: hidden;
-    display: grid;
-    gap: 3px;
-    place-items: center;
-    align-content: center;
-    min-height: 48px;
-    padding-top: 1px;
-  }
-
-  .sign-ornament::before,
-  .sign-ornament::after {
-    content: "";
-    position: absolute;
-    pointer-events: none;
-  }
-
-  .sign-ornament::before {
-    width: 6px;
-    aspect-ratio: 1;
-    top: 5px;
-    left: 6px;
-    border-radius: 999px;
-    background:
-      radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.78), transparent 26%),
-      radial-gradient(circle, #8a8073 0%, #312b25 82%);
-    box-shadow:
-      inset 0 1px 1px rgba(255, 255, 255, 0.5),
-      0 1px 2px rgba(0, 0, 0, 0.42);
-  }
-
-  .sign-ornament::after {
-    width: 6px;
-    aspect-ratio: 1;
-    bottom: 5px;
-    left: 6px;
-    border-radius: 999px;
-    background:
-      radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.78), transparent 26%),
-      radial-gradient(circle, #8a8073 0%, #312b25 82%);
-    box-shadow:
-      inset 0 1px 1px rgba(255, 255, 255, 0.5),
-      0 1px 2px rgba(0, 0, 0, 0.42);
-  }
-
-  .sign-ornament.right::before,
-  .sign-ornament.right::after {
-    left: auto;
-    right: 6px;
-  }
-
-  .power-button {
-    appearance: none;
-    -webkit-appearance: none;
-    border: 0;
-    cursor: pointer;
-    position: relative;
-    z-index: 1;
-    width: 23px;
-    aspect-ratio: 1;
-    border-radius: 999px;
-    background:
-      radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.92), transparent 18%),
-      repeating-conic-gradient(from 28deg, rgba(255, 255, 255, 0.22) 0 5deg, rgba(64, 58, 51, 0.14) 5deg 10deg),
-      radial-gradient(circle, #d5cec1 0%, #a69d90 54%, #403830 100%);
-    border: 1px solid rgba(51, 43, 35, 0.58);
-    box-shadow:
-      inset 0 2px 2px rgba(255, 255, 255, 0.58),
-      inset 0 -4px 5px rgba(0, 0, 0, 0.34),
-      0 2px 4px rgba(0, 0, 0, 0.26);
-  }
-
-  .power-button:hover,
-  .power-button:focus-visible,
-  .tuning-knob:hover,
-  .tuning-knob:focus-visible {
-    transform: translateY(-1px);
-    outline: none;
-  }
-
-  .power-button:active,
-  .tuning-knob:active {
-    transform: translateY(0);
-  }
-
-  .power-button::after {
-    content: "";
-    position: absolute;
-    right: -13px;
-    top: -13px;
-    width: 5px;
-    aspect-ratio: 1;
-    border-radius: 999px;
-    background: #d55f32;
-    box-shadow: 0 0 10px rgba(213, 95, 50, 0.75);
-  }
-
-  .power-button.off::after {
-    background: rgba(112, 89, 77, 0.64);
-    box-shadow: none;
-  }
-
-  .tuning-knob {
-    appearance: none;
-    -webkit-appearance: none;
-    border: 1px solid rgba(39, 32, 26, 0.72);
-    cursor: pointer;
-    position: relative;
-    z-index: 1;
-    width: 38px;
-    aspect-ratio: 1;
-    border-radius: 999px;
-    background:
-      radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.86), transparent 16%),
-      repeating-conic-gradient(from 20deg, rgba(255, 255, 255, 0.28) 0 4deg, rgba(80, 72, 62, 0.2) 4deg 9deg),
-      radial-gradient(circle, #efe8d7 0%, #c4b9a5 42%, #756b5f 70%, #24201c 100%);
-    box-shadow:
-      inset 0 2px 2px rgba(255, 255, 255, 0.62),
-      inset 0 -5px 8px rgba(0, 0, 0, 0.42),
-      0 0 0 4px rgba(48, 41, 35, 0.36),
-      0 5px 9px rgba(0, 0, 0, 0.28);
-    transition:
-      transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
-      box-shadow 180ms ease;
-  }
-
-  .tuning-knob::before {
-    content: "";
-    position: absolute;
-    left: 50%;
-    top: 5px;
-    width: 2px;
-    height: 11px;
-    transform: translateX(-50%) rotate(var(--knob-angle, 18deg));
-    transform-origin: 50% 14px;
-    border-radius: 999px;
-    background: #2d251f;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
-    transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  .control-label {
-    position: relative;
-    z-index: 1;
-    color: #3b342c;
-    font-family: var(--font-display);
-    font-size: 0.39rem;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
-    line-height: 1;
-  }
-
-  .marquee-copy {
-    position: relative;
-    z-index: 1;
-    display: grid;
-    grid-template-columns: minmax(195px, 0.95fr) 1px minmax(292px, 1.05fr);
-    align-items: center;
-    gap: 16px;
-    margin: 0;
-    padding: 1px 13px 0;
-    min-height: 48px;
-    text-align: left;
-  }
-
-  .marquee-copy::before,
-  .marquee-copy::after {
-    display: none;
-  }
-
-  .brand-block {
-    display: grid;
-    justify-items: center;
-    align-items: center;
-    gap: 0;
-  }
-
-  .receiver-divider {
-    align-self: stretch;
-    width: 1px;
-    background:
-      linear-gradient(180deg, transparent, rgba(45, 38, 31, 0.52) 22%, rgba(45, 38, 31, 0.52) 78%, transparent);
-    box-shadow: 1px 0 0 rgba(255, 255, 255, 0.32);
-  }
-
-  .radio-scale {
-    position: relative;
-    width: 100%;
-    display: grid;
-    gap: 4px;
-    align-self: center;
-    margin: 0;
-    padding: 3px 0;
-    color: #1f1b17;
-    font-family: var(--font-body);
-    font-size: clamp(0.44rem, 0.6vw, 0.56rem);
-    letter-spacing: 0.04em;
-  }
-
-  .radio-scale::before {
-    content: "";
-    position: absolute;
-    left: var(--tuner-position, 58%);
-    top: 1px;
-    width: 2px;
-    height: 34px;
-    background: #8e2e24;
-    box-shadow: 0 0 3px rgba(142, 46, 36, 0.35);
-    transition:
-      left 560ms cubic-bezier(0.22, 1, 0.36, 1),
-      box-shadow 180ms ease;
-  }
-
-  .radio-scale::after {
-    display: none;
-  }
-
-  .band-row {
-    position: relative;
-    display: grid;
-    grid-template-columns: 26px repeat(7, minmax(0, 1fr)) 32px;
-    align-items: end;
-    gap: 7px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(34, 29, 24, 0.55);
-  }
-
-  .band-row::before {
-    content: "";
-    position: absolute;
-    left: 33px;
-    right: 36px;
-    top: 3px;
-    height: 7px;
-    background:
-      repeating-linear-gradient(
-        90deg,
-        rgba(34, 29, 24, 0.62) 0 1px,
-        transparent 1px 5.25%
-      );
-    opacity: 0.86;
-  }
-
-  .band-label,
-  .band-unit {
-    font-family: var(--font-display);
-    font-size: 0.72em;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .band-row span {
-    text-align: center;
-    white-space: nowrap;
-  }
-
-  .frequency-spacer {
-    visibility: hidden;
-  }
-
-  h1 {
-    color: transparent;
-    -webkit-text-stroke: 0.75px rgba(25, 20, 17, 0.92);
-    font-size: clamp(1.24rem, 2.32vw, 2.25rem);
-    line-height: 0.86;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    text-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.22),
-      0 -1px 0 rgba(0, 0, 0, 0.08);
-    transition:
-      -webkit-text-stroke-color 180ms ease,
-      color 180ms ease,
-      text-shadow 180ms ease,
-      opacity 180ms ease;
-  }
-
-  h1.powered {
-    color: transparent;
-    -webkit-text-stroke: 0.7px rgb(212, 58, 58);
-    animation: title-powered-pulse 2.8s ease-in-out infinite;
-    text-shadow:
-      0 0 1px rgba(212, 58, 58, 0.95),
-      0 0 7px rgba(212, 58, 58, 0.42),
-      0 0 5px rgba(240, 210, 255, 0.74),
-      0 0 12px rgba(193, 118, 255, 0.5),
-      0 0 20px rgba(148, 66, 255, 0.26),
-      0 1px 0 rgba(0, 0, 0, 0.18);
-  }
-
-  .power-button:not(.off)::after {
-    animation: power-indicator-pulse 1.9s ease-in-out infinite;
-  }
-
-  @keyframes title-powered-pulse {
-    0%,
-    100% {
-      opacity: 0.96;
-      text-shadow:
-        0 0 1px rgba(212, 58, 58, 0.95),
-        0 0 7px rgba(212, 58, 58, 0.42),
-        0 0 5px rgba(240, 210, 255, 0.74),
-        0 0 12px rgba(193, 118, 255, 0.5),
-        0 0 20px rgba(148, 66, 255, 0.26),
-        0 1px 0 rgba(0, 0, 0, 0.18);
-    }
-    50% {
-      opacity: 1;
-      text-shadow:
-        0 0 1px rgba(212, 58, 58, 0.95),
-        0 0 8px rgba(212, 58, 58, 0.48),
-        0 0 6px rgba(240, 210, 255, 0.8),
-        0 0 14px rgba(193, 118, 255, 0.56),
-        0 0 24px rgba(148, 66, 255, 0.3),
-        0 1px 0 rgba(0, 0, 0, 0.18);
-    }
-  }
-
-  @keyframes power-indicator-pulse {
-    0%,
-    100% {
-      box-shadow: 0 0 8px rgba(213, 95, 50, 0.52);
-      opacity: 0.84;
-    }
-    50% {
-      box-shadow: 0 0 12px rgba(213, 95, 50, 0.82);
-      opacity: 1;
-    }
-  }
-
-  @media (max-width: 900px) {
-    .shop-sign {
-      grid-template-columns: 54px minmax(0, 1fr) 58px;
-      min-height: 60px;
-    }
-
-    .marquee-copy {
-      grid-template-columns: minmax(158px, 0.9fr) 1px minmax(225px, 1.1fr);
-      gap: 10px;
-      padding-inline: 9px;
-    }
-
-    h1 {
-      font-size: clamp(1.05rem, 2.25vw, 1.65rem);
-    }
-
-  }
-
-  @media (max-width: 680px) {
-    .shop-sign {
-      grid-template-columns: 30px minmax(0, 1fr) 32px;
-      min-height: 50px;
-      gap: 2px;
-      padding: 4px;
-    }
-
-    .power-button {
-      width: 17px;
-    }
-
-    .tuning-knob {
-      width: 22px;
-    }
-
-    .control-label {
-      display: none;
-    }
-
-    .marquee-copy {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 4px;
-      margin: 0 2px;
-      padding: 4px 5px;
-      text-align: center;
-    }
-
-    .receiver-divider {
-      display: none;
-    }
-
-    .radio-scale {
-      width: 100%;
-      font-size: 0.33rem;
-    }
-
-    .band-row {
-      gap: 3px;
-      grid-template-columns: 16px repeat(7, minmax(0, 1fr)) 18px;
-      padding-top: 5px;
-    }
-
-    .band-row::before {
-      left: 18px;
-      right: 19px;
-    }
-
-    h1 {
-      font-size: clamp(0.74rem, 3.5vw, 0.98rem);
-      letter-spacing: 0.07em;
-    }
-  }
-
-  h1,
   h2,
   h3,
   h4 {
@@ -2620,7 +2124,7 @@
 
   @media (max-width: 860px) {
     .shell {
-      padding: 14px 12px calc(118px + env(safe-area-inset-bottom, 0px));
+      padding: 14px 12px calc(98px + env(safe-area-inset-bottom, 0px));
     }
 
     .album-card {
@@ -2629,12 +2133,12 @@
     }
 
     .album-display {
-      min-height: clamp(320px, 58vh, 460px);
+      min-height: clamp(290px, 48vh, 400px);
     }
 
     .album-stage {
-      inset: 12px;
-      padding: 10px;
+      inset: 10px;
+      padding: 8px;
     }
 
     .queue-column {
@@ -2650,11 +2154,11 @@
       position: fixed;
       left: 12px;
       right: 12px;
-      bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      bottom: env(safe-area-inset-bottom, 0px);
       z-index: 40;
-      min-height: 78px;
-      padding: 16px 18px 18px;
-      font-size: 1.95rem;
+      min-height: 70px;
+      padding: 14px 18px 16px;
+      font-size: 1.72rem;
       border-radius: 18px;
       box-shadow:
         inset 0 1px 0 rgba(255, 213, 161, 0.2),
@@ -2667,7 +2171,7 @@
     }
 
     .art-slot {
-      width: min(78vw, 340px);
+      width: min(67vw, 285px);
     }
 
     .queue-section,
@@ -2687,35 +2191,35 @@
 
   @media (max-width: 480px) {
     .shell {
-      padding: 12px 10px calc(108px + env(safe-area-inset-bottom, 0px));
+      padding: 12px 10px calc(92px + env(safe-area-inset-bottom, 0px));
     }
 
     .album-display {
-      min-height: clamp(290px, 50vh, 380px);
+      min-height: clamp(238px, 37vh, 300px);
     }
 
     .album-stage {
-      inset: 10px;
-      padding: 8px;
+      inset: 8px;
+      padding: 6px;
     }
 
     .art-slot {
-      width: min(76vw, 300px);
+      width: min(63vw, 238px);
       border-width: 3px;
     }
 
     .art-slot .cover-art {
-      width: min(90%, 270px);
-      height: min(90%, 270px);
+      width: min(90%, 214px);
+      height: min(90%, 214px);
     }
 
     .random-button {
       left: 10px;
       right: 10px;
-      bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-      min-height: 72px;
-      font-size: 1.72rem;
-      letter-spacing: 0.1em;
+      bottom: env(safe-area-inset-bottom, 0px);
+      min-height: 64px;
+      font-size: 1.5rem;
+      letter-spacing: 0.08em;
     }
 
     .lcd-copy {
