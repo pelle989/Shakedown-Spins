@@ -2328,7 +2328,7 @@
       position: fixed;
       left: 12px;
       right: 12px;
-      bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+      bottom: calc(32px + env(safe-area-inset-bottom, 0px));
       z-index: 40;
       min-height: 70px;
       padding: 14px 18px 16px;
@@ -2390,7 +2390,7 @@
     .random-button {
       left: 10px;
       right: 10px;
-      bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+      bottom: calc(32px + env(safe-area-inset-bottom, 0px));
       min-height: 64px;
       font-size: 1.5rem;
       letter-spacing: 0.08em;
