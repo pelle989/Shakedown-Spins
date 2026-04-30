@@ -1,10 +1,16 @@
 import { fileLooksTooLarge, parseCsv } from '$lib/csv';
+import { DEFAULT_STASH_BADGE_KEY, isStashBadgeKey, type StashBadgeKey } from '$lib/stash-badges';
 
 export function validateStashName(name: string): string {
   const trimmed = name.trim();
   if (!trimmed) throw new Error('Stash name is required.');
   if (trimmed.length > 100) throw new Error('Stash name must be 100 characters or fewer.');
   return trimmed;
+}
+
+export function validateStashBadgeKey(value: FormDataEntryValue | null): StashBadgeKey {
+  if (typeof value !== 'string') return DEFAULT_STASH_BADGE_KEY;
+  return isStashBadgeKey(value) ? value : DEFAULT_STASH_BADGE_KEY;
 }
 
 export async function parseUploadFile(file: File) {

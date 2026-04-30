@@ -1,6 +1,6 @@
 import { createStash, listStashes } from '$lib/db';
 import { getIpHash } from '$lib/server/ip';
-import { parseUploadFile, validateStashName } from '$lib/server/validation';
+import { parseUploadFile, validateStashBadgeKey, validateStashName } from '$lib/server/validation';
 import { json, type RequestHandler } from '@sveltejs/kit';
 
 export const GET: RequestHandler = async () => {
@@ -12,19 +12,22 @@ export const POST: RequestHandler = async ({ request }) => {
     const formData = await request.formData();
     const rawName = formData.get('name');
     const file = formData.get('file');
+    const rawBadgeKey = formData.get('stashBadgeKey');
 
     if (!(typeof rawName === 'string') || !(file instanceof File)) {
       return json({ message: 'A stash name and CSV file are required.' }, { status: 400 });
     }
 
     const name = validateStashName(rawName);
+    const stashBadgeKey = validateStashBadgeKey(rawBadgeKey);
     const preview = await parseUploadFile(file);
     const ipHash = getIpHash(request.headers);
 
     const stash = await createStash({
       name,
       albums: preview.albums,
-      ipHash
+      ipHash,
+      stashBadgeKey
     });
 
     return json({ stash });
