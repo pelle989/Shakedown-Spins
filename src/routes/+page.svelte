@@ -25,9 +25,9 @@
   let loadingRestore = $state(true);
   let restoringMessage = $state<string | null>(null);
   let pendingUpload = $state(false);
+  let loadingStashId = $state<string | null>(null);
   let uploadError = $state<string | null>(null);
   let uploadSuccess = $state<string | null>(null);
-  let highlightedStashId = $state<string | null>(null);
   let selectedFile: File | null = $state(null);
   let preview: UploadPreview | null = $state(null);
   let currentPick = $state<Album | null>(null);
@@ -92,7 +92,6 @@
         }
       : null
   );
-
   $effect(() => {
     stashes = data.stashes;
     databaseAvailable = data.databaseAvailable;
@@ -360,6 +359,7 @@
           albums: payload.stash.albums
         }
       };
+      selectedStashId = payload.stash.id;
       resetPlaybackState();
     } catch {
       restoringMessage = 'Could not restore the previous stash. Browse the current feed below.';
@@ -379,24 +379,30 @@
 
   async function loadStash(stashId: string) {
     restoringMessage = null;
-    const response = await fetch(`/api/stashes/${stashId}`);
-    if (!response.ok) {
-      restoringMessage = 'That stash moved on. Only the newest 10 stashes survive, so browse the current feed below.';
-      clearActiveStashId();
-      activeState = { status: 'idle' };
-      return;
-    }
-
-    const payload = (await response.json()) as { stash: LoadedStash };
-    activeState = {
-      status: 'loaded',
-      collection: {
-        source: { kind: 'top10', id: payload.stash.id, label: payload.stash.name },
-        albums: payload.stash.albums
+    loadingStashId = stashId;
+    try {
+      const response = await fetch(`/api/stashes/${stashId}`);
+      if (!response.ok) {
+        restoringMessage =
+          'That stash moved on. Only the newest 10 stashes survive, so browse the current feed below.';
+        clearActiveStashId();
+        activeState = { status: 'idle' };
+        return;
       }
-    };
-    saveActiveStashId(payload.stash.id);
-    resetPlaybackState();
+
+      const payload = (await response.json()) as { stash: LoadedStash };
+      activeState = {
+        status: 'loaded',
+        collection: {
+          source: { kind: 'top10', id: payload.stash.id, label: payload.stash.name },
+          albums: payload.stash.albums
+        }
+      };
+      saveActiveStashId(payload.stash.id);
+      resetPlaybackState();
+    } finally {
+      loadingStashId = null;
+    }
   }
 
   function unloadStash() {
@@ -454,7 +460,6 @@
 
       await invalidate('/');
       stashes = [payload.stash, ...stashes.filter((stash) => stash.id !== payload.stash?.id)].slice(0, 10);
-      highlightedStashId = payload.stash.id;
       uploadSuccess = `Your stash was created with ${payload.stash.albumCount} albums.`;
       stashName = '';
       selectedFile = null;
@@ -641,32 +646,63 @@
           </div>
 
           <div class="album-copy lcd-copy">
-            {#if activeState.status === 'idle'}
-              <h3>No stash loaded</h3>
-              <p class="artist">Pick one from the right-side crate to wake the platter.</p>
-            {:else if artLoading}
-              <div class="pick-reveal loading-placeholder">
-                <h3>{displayedTitle || currentPick?.title || 'Loading cover art'}</h3>
-                <p class="artist">{displayedArtist || currentPick?.artist || 'Hold tight'}</p>
-              </div>
-            {:else if currentPick}
-              {#key currentPick.id}
+            <div class="lcd-main">
+              {#if currentPick}
+                {#key currentPick.id}
+                  <div class:loading-placeholder={artLoading} class="pick-reveal">
+                    <div class="readout-row" in:fade={{ duration: 220 }}>
+                      <span class="readout-label">Album</span>
+                      <h3 in:fly={{ y: 12, duration: 320 }}>
+                        {displayedTitle || currentPick.title}
+                      </h3>
+                    </div>
+                    <div class="readout-row" in:fade={{ duration: 260, delay: 60 }}>
+                      <span class="readout-label">Artist</span>
+                      <p class="artist" in:fly={{ y: 16, duration: 380, delay: 70 }}>
+                        {displayedArtist || currentPick.artist}
+                      </p>
+                    </div>
+                  </div>
+                {/key}
+              {:else if activeState.status === 'idle'}
                 <div class="pick-reveal">
-                  <h3 in:fly={{ y: 12, duration: 320 }}>{displayedTitle || currentPick.title}</h3>
-                  <p class="artist" in:fly={{ y: 16, duration: 380, delay: 70 }}>
-                    {displayedArtist || currentPick.artist}
-                  </p>
-                  <p class="meta" in:fade={{ duration: 320, delay: 120 }}>
-                    {#if currentPick.year}{currentPick.year}{/if}
-                    {#if currentPick.label} · {currentPick.label}{/if}
-                    {#if currentPick.format} · {currentPick.format}{/if}
-                  </p>
+                  <div class="readout-row">
+                    <span class="readout-label">Album</span>
+                    <h3>No stash loaded</h3>
+                  </div>
+                  <div class="readout-row">
+                    <span class="readout-label">Artist</span>
+                    <p class="artist">Pick one from the crate to wake the platter.</p>
+                  </div>
                 </div>
-              {/key}
-            {:else}
-              <h3>Nothing selected yet</h3>
-              <p class="artist">Press Random or hit Space to reveal the next album.</p>
-            {/if}
+              {:else}
+                <div class="pick-reveal">
+                  <div class="readout-row">
+                    <span class="readout-label">Album</span>
+                    <h3>Nothing selected yet</h3>
+                  </div>
+                  <div class="readout-row">
+                    <span class="readout-label">Artist</span>
+                    <p class="artist">Press Random or hit Space to reveal the next album.</p>
+                  </div>
+                </div>
+              {/if}
+            </div>
+
+            <div class="meta-strip">
+              <div class="meta-cell">
+                <span class="meta-label">Year</span>
+                <span class="meta-value">{currentPick?.year ?? '—'}</span>
+              </div>
+              <div class="meta-cell">
+                <span class="meta-label">Label</span>
+                <span class="meta-value">{currentPick?.label ?? '—'}</span>
+              </div>
+              <div class="meta-cell">
+                <span class="meta-label">Format</span>
+                <span class="meta-value">{currentPick?.format ?? '—'}</span>
+              </div>
+            </div>
 
             {#if restoringMessage}
               <p class="status-note">{restoringMessage}</p>
@@ -710,7 +746,7 @@
                       {#if album.coverImageUrl}
                         <img src={album.coverImageUrl} alt={`Cover art for ${album.title}`} />
                       {:else}
-                        <VinylLoader size={48} active={true} />
+                        <VinylLoader size={48} animated={false} />
                       {/if}
                     </div>
                     <div class="history-copy">
@@ -741,7 +777,7 @@
 
         {#if activeState.status === 'loaded' && activeStashSummary}
           <div class="crate-feed loaded-crate-feed">
-            <article class="stash-card record-card highlighted loaded-stash-card">
+            <article class="stash-card record-card loaded-stash-card">
               <div class="stash-card-top">
                 <div>
                   <h3>{activeStashSummary.name}</h3>
@@ -759,13 +795,20 @@
         {:else}
           <div class="crate-feed">
             {#each stashes as stash}
-              <article class:highlighted={highlightedStashId === stash.id} class="stash-card record-card">
+              <article class="stash-card record-card">
                 <div class="stash-card-top">
                   <div>
                     <h3>{stash.name}</h3>
                     <p>{stash.albumCount} albums · {formatStashTimestamp(stash.createdAt)}</p>
                   </div>
-                  <button class="load-button" onclick={() => loadStash(stash.id)}>Load Stash</button>
+                  <button
+                    class="load-button"
+                    type="button"
+                    disabled={loadingStashId === stash.id}
+                    onclick={() => loadStash(stash.id)}
+                  >
+                    {loadingStashId === stash.id ? 'Loading...' : 'Load Stash'}
+                  </button>
                 </div>
               </article>
             {/each}
@@ -955,6 +998,7 @@
       linear-gradient(180deg, rgba(255, 232, 187, 0.06), transparent 18%),
       linear-gradient(90deg, rgba(71, 31, 14, 0.16), rgba(120, 60, 27, 0.08) 16%, rgba(66, 29, 15, 0.14) 33%, rgba(116, 56, 26, 0.08) 52%, rgba(68, 31, 16, 0.14) 72%, rgba(112, 53, 24, 0.08) 100%),
       linear-gradient(180deg, #7b311b 0%, #6a2917 24%, #5b2415 48%, #4a1d12 72%, #38160e 100%);
+    background-attachment: fixed;
   }
 
   .page {
@@ -990,8 +1034,17 @@
     position: fixed;
     inset: 0;
     pointer-events: none;
-    opacity: 0.16;
+    opacity: 0.24;
     background-image:
+      repeating-linear-gradient(
+        90deg,
+        rgba(86, 37, 19, 0.22) 0 3px,
+        rgba(135, 70, 33, 0.1) 3px 8px,
+        rgba(78, 31, 16, 0.18) 8px 15px,
+        rgba(145, 80, 41, 0.08) 15px 28px,
+        rgba(70, 27, 14, 0.14) 28px 42px,
+        rgba(120, 58, 28, 0.08) 42px 64px
+      ),
       repeating-linear-gradient(
         180deg,
         rgba(43, 17, 8, 0.12) 0 2px,
@@ -999,11 +1052,24 @@
         rgba(41, 15, 8, 0.1) 5px 7px,
         transparent 7px 13px
       ),
+      radial-gradient(14% 4% at 18% 18%, rgba(63, 23, 11, 0.28), transparent 72%),
+      radial-gradient(18% 5% at 58% 22%, rgba(82, 31, 15, 0.22), transparent 74%),
+      radial-gradient(16% 4% at 74% 46%, rgba(64, 24, 11, 0.24), transparent 72%),
+      radial-gradient(18% 5% at 34% 68%, rgba(88, 37, 18, 0.22), transparent 74%),
       radial-gradient(36% 6% at 18% 14%, rgba(48, 15, 7, 0.3), transparent 70%),
       radial-gradient(28% 5% at 66% 22%, rgba(61, 21, 10, 0.24), transparent 72%),
       radial-gradient(32% 6% at 42% 58%, rgba(48, 15, 7, 0.28), transparent 72%),
       radial-gradient(30% 5% at 78% 76%, rgba(62, 22, 10, 0.24), transparent 72%);
-    background-size: 100% 16px, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+    background-size:
+      100% 100%,
+      100% 16px,
+      100% 100%,
+      100% 100%,
+      100% 100%,
+      100% 100%,
+      100% 100%,
+      100% 100%,
+      100% 100%;
     mix-blend-mode: multiply;
   }
 
@@ -1072,8 +1138,14 @@
 
   .player-panel {
     background:
-      linear-gradient(180deg, rgba(255, 238, 200, 0.05), transparent 12%),
-      linear-gradient(135deg, #6f4220 0%, #432310 100%);
+      radial-gradient(120% 100% at 50% -12%, rgba(255, 255, 255, 0.52), transparent 34%),
+      linear-gradient(180deg, #ddd8d1 0%, #c9c4bc 18%, #a7a29c 48%, #c3beb6 78%, #e2ddd6 100%);
+    border-color: rgba(56, 50, 44, 0.72);
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.52),
+      inset 0 -2px 4px rgba(48, 43, 37, 0.28),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+      var(--shadow-panel);
   }
 
   .queue-panel {
@@ -1081,12 +1153,13 @@
     grid-template-rows: auto auto minmax(0, 1fr);
     gap: 10px;
     background:
-      linear-gradient(180deg, rgba(255, 241, 210, 0.06), transparent 12%),
-      linear-gradient(135deg, #63381c 0%, #412312 100%);
-    border-color: rgba(255, 228, 177, 0.06);
+      radial-gradient(120% 100% at 50% -12%, rgba(255, 255, 255, 0.5), transparent 34%),
+      linear-gradient(180deg, #d7d2cb 0%, #c3beb7 18%, #9f9a94 48%, #bbb6af 78%, #dbd6cf 100%);
+    border-color: rgba(56, 50, 44, 0.64);
     box-shadow:
-      inset 0 1px 0 rgba(255, 237, 201, 0.09),
-      inset 0 -1px 0 rgba(18, 8, 5, 0.2),
+      inset 0 2px 0 rgba(255, 255, 255, 0.46),
+      inset 0 -2px 4px rgba(42, 37, 31, 0.24),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.16),
       0 12px 20px rgba(23, 10, 6, 0.14);
   }
 
@@ -1140,15 +1213,15 @@
     padding: 12px;
     border-radius: 14px;
     background:
-      radial-gradient(circle at 50% 42%, rgba(129, 233, 161, 0.16), transparent 34%),
-      linear-gradient(180deg, rgba(190, 255, 210, 0.06), transparent 12%),
+      radial-gradient(circle at 50% 42%, rgba(71, 236, 224, 0.16), transparent 36%),
+      linear-gradient(180deg, rgba(200, 255, 251, 0.08), transparent 12%),
       linear-gradient(180deg, #394147 0%, #2b3238 18%, #171c20 100%);
-    border: 1px solid rgba(167, 190, 177, 0.11);
+    border: 1px solid rgba(104, 201, 196, 0.14);
     box-shadow:
-      inset 0 1px 0 rgba(237, 255, 243, 0.08),
+      inset 0 1px 0 rgba(230, 255, 253, 0.12),
       inset 0 -1px 0 rgba(10, 13, 15, 0.44),
-      inset 0 0 0 1px rgba(78, 91, 87, 0.14),
-      0 0 18px rgba(70, 168, 101, 0.06);
+      inset 0 0 0 1px rgba(86, 124, 122, 0.18),
+      0 0 18px rgba(71, 236, 224, 0.1);
     transition:
       background 220ms ease,
       box-shadow 220ms ease,
@@ -1181,19 +1254,19 @@
     place-items: center;
     overflow: hidden;
     background:
-      radial-gradient(circle at 50% 42%, rgba(133, 232, 162, 0.2), transparent 44%),
-      linear-gradient(180deg, rgba(233, 255, 238, 0.1), transparent 8%),
+      radial-gradient(circle at 50% 42%, rgba(78, 236, 224, 0.2), transparent 44%),
+      linear-gradient(180deg, rgba(226, 255, 253, 0.12), transparent 8%),
       linear-gradient(180deg, #15201a 0%, #0a0f0d 100%);
-    border: 4px solid rgba(136, 149, 142, 0.5);
+    border: 4px solid rgba(102, 181, 178, 0.52);
     box-shadow:
-      inset 0 0 0 1px rgba(18, 28, 24, 0.52),
-      inset 0 0 24px rgba(98, 198, 124, 0.1),
+      inset 0 0 0 1px rgba(17, 31, 29, 0.56),
+      inset 0 0 26px rgba(71, 236, 224, 0.16),
       0 8px 16px rgba(0, 0, 0, 0.18);
   }
 
   .art-slot.has-art {
     background:
-      radial-gradient(circle at 50% 50%, rgba(129, 233, 161, 0.16), transparent 52%),
+      radial-gradient(circle at 50% 50%, rgba(71, 236, 224, 0.18), transparent 52%),
       linear-gradient(180deg, #0d1512 0%, #070b09 100%);
   }
 
@@ -1229,7 +1302,7 @@
     pointer-events: none;
     background:
       radial-gradient(circle at 50% 50%, transparent 0 42%, rgba(5, 9, 7, 0.34) 72%),
-      linear-gradient(180deg, rgba(132, 225, 151, 0.1), transparent 34%, rgba(0, 0, 0, 0.18));
+      linear-gradient(180deg, rgba(80, 240, 229, 0.12), transparent 34%, rgba(0, 0, 0, 0.18));
   }
 
   .art-slot :global(.record-loader) {
@@ -1239,15 +1312,35 @@
 
   .lcd-copy {
     display: grid;
-    gap: 4px;
+    gap: 10px;
     min-height: 170px;
-    padding: 18px;
-    border-radius: 18px;
+    padding: 14px;
+    border-radius: 16px;
     background:
-      linear-gradient(180deg, rgba(255, 251, 237, 0.28), transparent 8%),
-      linear-gradient(180deg, #f7e7bf 0%, #efd59e 100%);
-    color: #382214;
-    border: 1px solid rgba(104, 61, 28, 0.18);
+      linear-gradient(180deg, rgba(214, 255, 248, 0.08), transparent 14%),
+      linear-gradient(180deg, #233233 0%, #131c1d 34%, #0a1011 100%);
+    color: #dff8ef;
+    border: 1px solid rgba(111, 151, 146, 0.28);
+    box-shadow:
+      inset 0 1px 0 rgba(239, 255, 252, 0.08),
+      inset 0 0 0 1px rgba(20, 34, 35, 0.44),
+      inset 0 0 22px rgba(83, 232, 215, 0.08);
+  }
+
+  .lcd-main {
+    display: grid;
+    align-content: center;
+    min-height: 126px;
+    padding: 14px 16px 12px;
+    border-radius: 12px;
+    background:
+      linear-gradient(180deg, rgba(203, 255, 247, 0.06), transparent 16%),
+      linear-gradient(180deg, rgba(0, 0, 0, 0.16), transparent 28%),
+      linear-gradient(180deg, #10201f 0%, #0a1213 100%);
+    border: 1px solid rgba(108, 157, 150, 0.18);
+    box-shadow:
+      inset 0 1px 0 rgba(238, 255, 252, 0.06),
+      inset 0 0 18px rgba(78, 228, 211, 0.08);
   }
 
   .loading-dice {
@@ -1258,40 +1351,83 @@
 
   .pick-reveal {
     display: grid;
-    gap: 2px;
+    gap: 12px;
   }
 
   .loading-placeholder {
     opacity: 0.92;
   }
 
+  .readout-row {
+    display: grid;
+    gap: 4px;
+  }
+
+  .readout-label {
+    font-family: var(--font-display);
+    font-size: 0.68rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(144, 233, 224, 0.74);
+  }
+
   .lcd-copy h3 {
-    font-size: clamp(1.3rem, 2.3vw, 1.9rem);
-    line-height: 1.06;
+    font-size: clamp(1.36rem, 2.3vw, 1.95rem);
+    line-height: 1.02;
     font-family: var(--font-ui);
     font-weight: 700;
     font-style: normal;
     letter-spacing: 0.01em;
-    color: #2f1c10;
-    margin-bottom: 0;
+    color: #f4f2df;
+    margin: 0;
     text-align: left;
+    text-shadow: 0 0 8px rgba(189, 243, 236, 0.08);
   }
 
   .artist {
     margin: 0;
-    font-size: clamp(0.95rem, 1.72vw, 1.3rem);
-    line-height: 1.05;
+    font-size: clamp(0.94rem, 1.6vw, 1.18rem);
+    line-height: 1.08;
     font-family: var(--font-ui);
     font-weight: 500;
     letter-spacing: 0.01em;
-    color: #633920;
+    color: #c7e8df;
     text-align: left;
   }
 
-  .meta {
-    margin: 0;
-    color: #7d5c3d;
-    font-size: 0.9rem;
+  .meta-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background:
+      linear-gradient(180deg, rgba(222, 255, 250, 0.06), transparent 20%),
+      linear-gradient(180deg, #192425 0%, #0f1718 100%);
+    border: 1px solid rgba(102, 145, 140, 0.14);
+  }
+
+  .meta-cell {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .meta-label {
+    font-family: var(--font-display);
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(145, 210, 203, 0.62);
+  }
+
+  .meta-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #d9e8df;
+    font-size: 0.88rem;
   }
 
   .queue-section {
@@ -1339,11 +1475,6 @@
     border: 1px solid rgba(92, 58, 27, 0.18);
   }
 
-  .stash-card.highlighted {
-    border-color: rgba(212, 93, 58, 0.72);
-    box-shadow: 0 0 0 2px rgba(212, 93, 58, 0.18);
-  }
-
   .stash-card-top {
     display: flex;
     justify-content: space-between;
@@ -1359,7 +1490,7 @@
 
   .load-button {
     align-self: start;
-    min-width: 84px;
+    min-width: 108px;
     padding: 12px 16px;
     border-radius: 14px;
     background:
@@ -1370,8 +1501,17 @@
       0 6px 12px rgba(122, 41, 18, 0.22);
   }
 
-  .load-button:hover:not(:disabled) {
+  .load-button:hover:not(:disabled),
+  .load-button:focus-visible:not(:disabled) {
     transform: translateY(-1px) scale(1.02);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 227, 183, 0.3),
+      0 8px 14px rgba(122, 41, 18, 0.24);
+  }
+
+  .load-button:disabled {
+    opacity: 0.54;
+    cursor: default;
   }
 
   .history-list {
@@ -1450,27 +1590,39 @@
   }
 
   .random-button {
+    position: relative;
     display: grid;
     place-items: center;
-    min-height: 98px;
-    padding: 20px 20px 22px;
+    min-height: 106px;
+    padding: 20px 24px 22px;
     border-radius: 20px;
-    border: 0;
+    border: 1px solid rgba(78, 47, 28, 0.72);
     cursor: pointer;
     background:
-      radial-gradient(circle at 50% 28%, #d43a3a 0%, #b6462a 55%, #8f1d1d 100%);
+      radial-gradient(circle at 50% 22%, #ff8f63 0%, #e5533a 26%, #cf2f2f 56%, #9b1a1f 100%);
     color: #ffe6b7;
     font-family: var(--font-display);
     font-size: 2.42rem;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     box-shadow:
-      inset 0 1px 0 rgba(255, 213, 161, 0.2),
-      0 10px 18px rgba(86, 18, 8, 0.26);
+      inset 0 1px 0 rgba(255, 234, 195, 0.18),
+      0 0 0 1px rgba(214, 189, 145, 0.14),
+      0 12px 20px rgba(86, 18, 8, 0.26);
   }
 
   .random-button:disabled {
     cursor: default;
+    opacity: 0.78;
+  }
+
+  .random-button:hover:not(:disabled),
+  .random-button:focus-visible:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 234, 195, 0.18),
+      0 0 0 1px rgba(214, 189, 145, 0.16),
+      0 16px 24px rgba(86, 18, 8, 0.3);
   }
 
   .bottom-strip {
@@ -1479,8 +1631,14 @@
     gap: 16px;
     align-items: stretch;
     background:
-      linear-gradient(180deg, rgba(255, 238, 200, 0.05), transparent 12%),
-      linear-gradient(135deg, #6e3f1e 0%, #4d2b15 100%);
+      radial-gradient(120% 100% at 50% -12%, rgba(255, 255, 255, 0.52), transparent 34%),
+      linear-gradient(180deg, #dbd6cf 0%, #c7c2bb 18%, #a39f99 48%, #c0bbb4 78%, #e0dbd4 100%);
+    border-color: rgba(56, 50, 44, 0.72);
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -2px 4px rgba(46, 40, 35, 0.26),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+      var(--shadow-panel);
   }
 
   .bottom-panel {
@@ -1528,9 +1686,9 @@
     padding: 7px 11px;
     border-radius: 999px;
     background:
-      linear-gradient(180deg, rgba(116, 166, 95, 0.2), rgba(49, 86, 40, 0.18));
-    border: 1px solid rgba(168, 220, 144, 0.24);
-    color: #315226;
+      linear-gradient(180deg, rgba(86, 236, 225, 0.22), rgba(18, 94, 88, 0.18));
+    border: 1px solid rgba(129, 244, 235, 0.28);
+    color: #0f5d57;
     font-family: var(--font-display);
     font-size: 0.72rem;
     letter-spacing: 0.12em;
@@ -1545,8 +1703,8 @@
     width: 7px;
     aspect-ratio: 1;
     border-radius: 999px;
-    background: #79c661;
-    box-shadow: 0 0 8px rgba(121, 198, 97, 0.45);
+    background: #59f0e7;
+    box-shadow: 0 0 10px rgba(89, 240, 231, 0.5);
   }
 
   .utility-panel {
@@ -1723,6 +1881,16 @@
       inset 0 -1px 0 rgba(0, 0, 0, 0.24);
   }
 
+  .selector-unit:hover,
+  .selector-unit:focus-visible {
+    border-color: rgba(108, 233, 224, 0.28);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 238, 200, 0.08),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.24),
+      0 0 0 1px rgba(71, 236, 224, 0.16),
+      0 0 16px rgba(71, 236, 224, 0.08);
+  }
+
   .selector-label {
     color: #f1d79d;
     font-family: var(--font-display);
@@ -1813,10 +1981,11 @@
     padding: 6px 12px;
     border-radius: 999px;
     background:
-      linear-gradient(180deg, rgba(241, 223, 183, 0.18), rgba(111, 60, 29, 0.32));
-    border: 1px solid rgba(255, 228, 177, 0.14);
-    color: #f5e2bc;
+      linear-gradient(180deg, rgba(180, 255, 250, 0.18), rgba(21, 89, 84, 0.28));
+    border: 1px solid rgba(133, 243, 235, 0.2);
+    color: #d9fffb;
     font-size: 0.84rem;
+    box-shadow: 0 0 12px rgba(71, 236, 224, 0.08);
   }
 
   .upload-form {
@@ -2062,9 +2231,9 @@
 
   .rotary-option-active {
     background:
-      linear-gradient(180deg, rgba(217, 108, 67, 0.22), rgba(78, 24, 13, 0.28)),
-      linear-gradient(180deg, #422015 0%, #24110b 100%);
-    border-color: rgba(255, 201, 148, 0.28);
+      linear-gradient(180deg, rgba(107, 241, 231, 0.2), rgba(19, 78, 74, 0.28)),
+      linear-gradient(180deg, #233835 0%, #151d1c 100%);
+    border-color: rgba(132, 242, 233, 0.28);
   }
 
   .rotary-option-active .rotary-option-knob {
@@ -2072,12 +2241,12 @@
       inset 0 2px 0 rgba(255, 255, 255, 0.34),
       inset 0 -4px 7px rgba(52, 32, 17, 0.4),
       0 0 0 3px rgba(36, 23, 15, 0.72),
-      0 0 0 1px rgba(255, 206, 148, 0.38),
-      0 8px 16px rgba(174, 78, 44, 0.22);
+      0 0 0 1px rgba(130, 242, 234, 0.34),
+      0 8px 16px rgba(57, 182, 174, 0.2);
   }
 
   .rotary-option-active .rotary-option-label {
-    color: #ffe8c3;
+    color: #defffb;
   }
 
   .filter-group h4 {
@@ -2120,11 +2289,16 @@
     .selector-grid {
       grid-template-columns: 1fr;
     }
+
+    .meta-strip {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
   }
 
   @media (max-width: 860px) {
     .shell {
-      padding: 14px 12px calc(98px + env(safe-area-inset-bottom, 0px));
+      padding: 14px 12px calc(150px + env(safe-area-inset-bottom, 0px));
     }
 
     .album-card {
@@ -2154,7 +2328,7 @@
       position: fixed;
       left: 12px;
       right: 12px;
-      bottom: env(safe-area-inset-bottom, 0px);
+      bottom: calc(56px + env(safe-area-inset-bottom, 0px));
       z-index: 40;
       min-height: 70px;
       padding: 14px 18px 16px;
@@ -2191,7 +2365,7 @@
 
   @media (max-width: 480px) {
     .shell {
-      padding: 12px 10px calc(92px + env(safe-area-inset-bottom, 0px));
+      padding: 12px 10px calc(136px + env(safe-area-inset-bottom, 0px));
     }
 
     .album-display {
@@ -2216,7 +2390,7 @@
     .random-button {
       left: 10px;
       right: 10px;
-      bottom: env(safe-area-inset-bottom, 0px);
+      bottom: calc(52px + env(safe-area-inset-bottom, 0px));
       min-height: 64px;
       font-size: 1.5rem;
       letter-spacing: 0.08em;
@@ -2224,7 +2398,13 @@
 
     .lcd-copy {
       min-height: 0;
-      padding: 15px;
+      padding: 12px;
+      gap: 8px;
+    }
+
+    .lcd-main {
+      min-height: 112px;
+      padding: 12px 13px 10px;
     }
   }
 </style>

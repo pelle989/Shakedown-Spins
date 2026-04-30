@@ -1,26 +1,41 @@
 <script lang="ts">
   export let active = false;
+  export let animated = true;
   export let size = 64;
 </script>
 
 <svg
   class:active
+  class:static-loader={!animated}
   class="record-loader"
   width={size}
   height={size}
   viewBox="0 0 100 100"
   aria-hidden="true"
 >
+  <defs>
+    <clipPath id="label-clip">
+      <circle cx="50" cy="50" r="16.2" />
+    </clipPath>
+  </defs>
   <g class:active class="record-disc">
     <circle class="record" cx="50" cy="50" r="48" />
     <circle class="groove groove-a" cx="50" cy="50" r="34" />
     <circle class="groove groove-b" cx="50" cy="50" r="26" />
     <circle class="groove groove-c" cx="50" cy="50" r="18" />
     <circle class="label" cx="50" cy="50" r="17" />
-    <path class="label-band" d="M39 42 C46 38, 56 38, 63 42 L63 47 C56 44, 46 44, 39 47 Z" />
-    <circle class="label-sticker" cx="58" cy="45" r="3.4" />
-    <path class="label-mark" d="M50 33 L53 39 L47 39 Z" />
-    <circle class="accent" cx="50" cy="50" r="7" />
+    <image
+      class="label-art"
+      href="/shakedown-spins.png"
+      x="33.8"
+      y="33.8"
+      width="32.4"
+      height="32.4"
+      preserveAspectRatio="xMidYMid slice"
+      clip-path="url(#label-clip)"
+    />
+    <circle class="label-ring" cx="50" cy="50" r="16.5" />
+    <circle class="accent" cx="50" cy="50" r="3" />
     <circle class="hole" cx="50" cy="50" r="2.4" />
   </g>
 </svg>
@@ -42,6 +57,12 @@
       loader-wobble 1.6s ease-in-out infinite;
   }
 
+  .record-loader.static-loader,
+  .record-loader.static-loader.active {
+    animation: none;
+    filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.2));
+  }
+
   .record-disc {
     transform-origin: 50% 50%;
     transform-box: fill-box;
@@ -51,6 +72,14 @@
 
   .record-disc.active {
     animation-duration: 1.4s;
+  }
+
+  .record-loader.static-loader .record-disc,
+  .record-loader.static-loader .record-disc.active,
+  .record-loader.static-loader .groove-a,
+  .record-loader.static-loader .groove-b,
+  .record-loader.static-loader .groove-c {
+    animation: none;
   }
 
   .record {
@@ -81,18 +110,14 @@
     fill: var(--color-paper);
   }
 
-  .label-band {
-    fill: rgba(122, 63, 44, 0.34);
+  .label-art {
+    opacity: 0.98;
   }
 
-  .label-sticker {
-    fill: #d35d3a;
-    stroke: rgba(95, 40, 23, 0.35);
-    stroke-width: 0.8;
-  }
-
-  .label-mark {
-    fill: rgba(91, 52, 31, 0.8);
+  .label-ring {
+    fill: none;
+    stroke: rgba(255, 245, 222, 0.55);
+    stroke-width: 0.7;
   }
 
   .accent {
