@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 import { env } from '$env/dynamic/private';
 import type { FeedData, LoadedStash, ParsedAlbumInput, StashPreviewAlbum, StashSummary } from '$lib/types';
+import { DEFAULT_STASH_BADGE_KEY } from '$lib/stash-badges';
 
 const DATABASE_URL = env.DATABASE_URL ?? process.env.DATABASE_URL ?? '';
 const DATABASE_URL_UNPOOLED = env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL_UNPOOLED ?? '';
@@ -25,6 +26,7 @@ type SummaryRow = {
   name: string;
   album_count: number;
   created_at: string;
+  stash_image_key?: string | null;
   stash_preview_json: StashPreviewAlbum[] | null;
 };
 
@@ -34,6 +36,7 @@ function mapSummary(row: SummaryRow): StashSummary {
     name: String(row.name),
     albumCount: Number(row.album_count),
     createdAt: new Date(String(row.created_at)).toISOString(),
+    stashBadgeKey: row.stash_image_key ? String(row.stash_image_key) : DEFAULT_STASH_BADGE_KEY,
     stashPreview: Array.isArray(row.stash_preview_json)
       ? (row.stash_preview_json as StashPreviewAlbum[])
       : []
@@ -51,12 +54,22 @@ export async function listStashes(): Promise<FeedData> {
   }
 
   try {
-    const result = await pool.query<SummaryRow>(
-      `select id, name, album_count, created_at, stash_preview_json
-       from stashes
-       order by created_at desc
-       limit 10`
-    );
+    let result;
+    try {
+      result = await pool.query<SummaryRow>(
+        `select id, name, album_count, created_at, stash_image_key, stash_preview_json
+         from stashes
+         order by created_at desc
+         limit 10`
+      );
+    } catch {
+      result = await pool.query<SummaryRow>(
+        `select id, name, album_count, created_at, stash_preview_json
+         from stashes
+         order by created_at desc
+         limit 10`
+      );
+    }
 
     return {
       stashes: result.rows.map(mapSummary),
@@ -76,12 +89,22 @@ export async function getStash(id: string): Promise<LoadedStash | null> {
   const pool = getReadPool();
   if (!pool) return null;
 
-  const summaryResult = await pool.query<SummaryRow>(
-    `select id, name, album_count, created_at, stash_preview_json
-     from stashes
-     where id = $1`,
-    [id]
-  );
+  let summaryResult;
+  try {
+    summaryResult = await pool.query<SummaryRow>(
+      `select id, name, album_count, created_at, stash_image_key, stash_preview_json
+       from stashes
+       where id = $1`,
+      [id]
+    );
+  } catch {
+    summaryResult = await pool.query<SummaryRow>(
+      `select id, name, album_count, created_at, stash_preview_json
+       from stashes
+       where id = $1`,
+      [id]
+    );
+  }
 
   if (summaryResult.rowCount === 0) return null;
 
@@ -125,16 +148,25 @@ export async function createStash(args: {
   name: string;
   albums: ParsedAlbumInput[];
   ipHash: string;
+  stashBadgeKey: string;
 }): Promise<StashSummary> {
   const pool = getWritePool();
   if (!pool) {
     throw new Error('DATABASE_URL_UNPOOLED is not configured');
   }
 
-  const result = await pool.query<(SummaryRow & { outcome: string | null })>(
-    'select * from create_stash($1::text, $2::jsonb, $3::text)',
-    [args.name, JSON.stringify(args.albums), args.ipHash]
-  );
+  let result;
+  try {
+    result = await pool.query<(SummaryRow & { outcome: string | null })>(
+      'select * from create_stash($1::text, $2::jsonb, $3::text, $4::text)',
+      [args.name, JSON.stringify(args.albums), args.ipHash, args.stashBadgeKey]
+    );
+  } catch {
+    result = await pool.query<(SummaryRow & { outcome: string | null })>(
+      'select * from create_stash($1::text, $2::jsonb, $3::text)',
+      [args.name, JSON.stringify(args.albums), args.ipHash]
+    );
+  }
 
   const row = result.rows[0];
   if (!row) {
@@ -147,5 +179,8 @@ export async function createStash(args: {
     throw error;
   }
 
-  return mapSummary(row);
+  return {
+    ...mapSummary(row),
+    stashBadgeKey: row.stash_image_key ? String(row.stash_image_key) : args.stashBadgeKey
+  };
 }

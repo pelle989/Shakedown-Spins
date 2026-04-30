@@ -5,10 +5,14 @@ create table if not exists stashes (
   name text not null,
   created_at timestamptz not null default now(),
   album_count integer not null check (album_count > 0),
+  stash_image_key text not null default 'record',
   stash_preview_json jsonb not null default '[]'::jsonb,
   constraint stashes_name_nonempty check (length(trim(name)) > 0),
   constraint stashes_name_length check (length(name) <= 100)
 );
+
+alter table stashes
+  add column if not exists stash_image_key text not null default 'record';
 
 create table if not exists stash_albums (
   id uuid primary key default gen_random_uuid(),
@@ -38,7 +42,8 @@ create index if not exists idx_rate_limit_ip_created on rate_limit_log (ip_hash,
 create or replace function create_stash(
   p_name text,
   p_albums jsonb,
-  p_ip_hash text
+  p_ip_hash text,
+  p_stash_image_key text default 'record'
 )
 returns table (
   outcome text,
@@ -46,6 +51,7 @@ returns table (
   name text,
   album_count integer,
   created_at timestamptz,
+  stash_image_key text,
   stash_preview_json jsonb
 )
 language plpgsql
@@ -70,7 +76,7 @@ begin
       and created_at > now() - interval '1 hour'
   ) >= 3 then
     return query
-    select 'rate_limited'::text, null::uuid, null::text, null::integer, null::timestamptz, null::jsonb;
+    select 'rate_limited'::text, null::uuid, null::text, null::integer, null::timestamptz, null::text, null::jsonb;
     return;
   end if;
 
@@ -118,8 +124,8 @@ begin
     ) preview
   );
 
-  insert into stashes (name, album_count, stash_preview_json)
-  values (p_name, v_album_count, v_preview)
+  insert into stashes (name, album_count, stash_image_key, stash_preview_json)
+  values (p_name, v_album_count, p_stash_image_key, v_preview)
   returning stashes.id, stashes.created_at into v_stash_id, v_created_at;
 
   insert into stash_albums (
@@ -164,6 +170,7 @@ begin
     s.name,
     s.album_count,
     s.created_at,
+    s.stash_image_key,
     s.stash_preview_json
   from stashes s
   where s.id = v_stash_id;
