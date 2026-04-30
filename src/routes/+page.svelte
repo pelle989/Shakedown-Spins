@@ -4,6 +4,7 @@
   import { buildFilterOptions, emptyFilters, filterAlbums } from '$lib/filters';
   import { nextPick, createRandomizerState, type RandomizerState } from '$lib/randomizer';
   import { clearActiveStashId, loadActiveStashId, saveActiveStashId } from '$lib/session';
+  import { DEFAULT_STASH_BADGE_KEY, getStashBadge, STASH_BADGES } from '$lib/stash-badges';
   import type {
     ActiveCollectionState,
     Album,
@@ -44,11 +45,10 @@
   let filterDialPage = $state({ genre: 0, decade: 0 });
   let filterTouchStartX = $state<number | null>(null);
   let stashName = $state('');
+  let stashBadgeKey = $state(DEFAULT_STASH_BADGE_KEY);
   const stashTimestampFormatter = new Intl.DateTimeFormat('en-US', {
     month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
+    day: 'numeric'
   });
 
   const filteredAlbums = $derived(
@@ -88,7 +88,9 @@
           id: activeState.collection.source.id,
           name: activeState.collection.source.label,
           albumCount: activeState.collection.albums.length,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          stashBadgeKey: DEFAULT_STASH_BADGE_KEY,
+          stashPreview: []
         }
       : null
   );
@@ -359,7 +361,6 @@
           albums: payload.stash.albums
         }
       };
-      selectedStashId = payload.stash.id;
       resetPlaybackState();
     } catch {
       restoringMessage = 'Could not restore the previous stash. Browse the current feed below.';
@@ -445,6 +446,7 @@
     pendingUpload = true;
     const formData = new FormData();
     formData.set('name', stashName);
+    formData.set('stashBadgeKey', stashBadgeKey);
     formData.set('file', selectedFile);
 
     try {
@@ -713,17 +715,16 @@
 
       <div class="queue-column">
         <button class="random-button" onclick={rollNext} disabled={activeState.status !== 'loaded' || filteredAlbums.length === 0 || rollingSelection}>
-          {#if rollingSelection}
-            <rolling-dice size="34" duration="500"></rolling-dice>
-          {:else}
-            Random
-          {/if}
+          <span class="random-button-content">
+            {#if rollingSelection}
+              <rolling-dice size="34" duration="500"></rolling-dice>
+            {:else}
+              Random
+            {/if}
+          </span>
         </button>
 
         <aside class="panel queue-panel">
-          <div class="panel-header">
-          </div>
-
           {#if !databaseAvailable}
             <p class="status-error">
               Database connection is not configured yet. Set `DATABASE_URL` and `DATABASE_URL_UNPOOLED`
@@ -779,9 +780,14 @@
           <div class="crate-feed loaded-crate-feed">
             <article class="stash-card record-card loaded-stash-card">
               <div class="stash-card-top">
-                <div>
-                  <h3>{activeStashSummary.name}</h3>
-                  <p>{activeStashSummary.albumCount} albums loaded into the receiver</p>
+                <div class="stash-card-heading">
+                  <span class={`stash-badge stash-badge-${getStashBadge(activeStashSummary.stashBadgeKey).tone}`}>
+                    {getStashBadge(activeStashSummary.stashBadgeKey).symbol}
+                  </span>
+                  <div>
+                    <h3>{activeStashSummary.name}</h3>
+                    <p>{activeStashSummary.albumCount} albums loaded into the receiver</p>
+                  </div>
                 </div>
                 <span class="loaded-indicator">Live</span>
               </div>
@@ -797,9 +803,14 @@
             {#each stashes as stash}
               <article class="stash-card record-card">
                 <div class="stash-card-top">
-                  <div>
-                    <h3>{stash.name}</h3>
-                    <p>{stash.albumCount} albums · {formatStashTimestamp(stash.createdAt)}</p>
+                  <div class="stash-card-heading">
+                    <span class={`stash-badge stash-badge-${getStashBadge(stash.stashBadgeKey).tone}`}>
+                      {getStashBadge(stash.stashBadgeKey).symbol}
+                    </span>
+                    <div>
+                      <h3>{stash.name}</h3>
+                      <p>{stash.albumCount} albums · {formatStashTimestamp(stash.createdAt)}</p>
+                    </div>
                   </div>
                   <button
                     class="load-button"
@@ -825,6 +836,20 @@
           <label>
             <span>Stash Name</span>
             <input bind:value={stashName} maxlength="100" placeholder="Collection Name" />
+          </label>
+
+          <label>
+            <span>Collection Icon</span>
+            <div class="icon-select-row">
+              <span class={`stash-badge stash-badge-${getStashBadge(stashBadgeKey).tone}`}>
+                {getStashBadge(stashBadgeKey).symbol}
+              </span>
+              <select bind:value={stashBadgeKey}>
+                {#each STASH_BADGES as badge}
+                  <option value={badge.key}>{badge.label}</option>
+                {/each}
+              </select>
+            </div>
           </label>
 
           <label>
@@ -1163,8 +1188,6 @@
       0 12px 20px rgba(23, 10, 6, 0.14);
   }
 
-  .panel-header,
-  .filters-head,
   .queue-section-header {
     display: flex;
     justify-content: space-between;
@@ -1308,6 +1331,11 @@
   .art-slot :global(.record-loader) {
     position: relative;
     z-index: 2;
+    width: min(100%, 340px);
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
+    margin: 0 auto;
   }
 
   .lcd-copy {
@@ -1341,12 +1369,6 @@
     box-shadow:
       inset 0 1px 0 rgba(238, 255, 252, 0.06),
       inset 0 0 18px rgba(78, 228, 211, 0.08);
-  }
-
-  .loading-dice {
-    display: flex;
-    align-items: center;
-    min-height: 40px;
   }
 
   .pick-reveal {
@@ -1482,10 +1504,67 @@
     margin-bottom: 10px;
   }
 
+  .stash-card-heading {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
   .stash-card-top p {
     margin: 4px 0 0;
     color: rgba(70, 43, 22, 0.76);
     font-size: 0.9rem;
+  }
+
+  .stash-badge {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    line-height: 1;
+    color: #fff7e8;
+    border: 1px solid rgba(63, 38, 20, 0.18);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 3px 8px rgba(41, 21, 10, 0.12);
+  }
+
+  .stash-badge-amber {
+    background: linear-gradient(180deg, #d5a84f 0%, #9d6423 100%);
+  }
+
+  .stash-badge-red {
+    background: linear-gradient(180deg, #e76d57 0%, #9f2b25 100%);
+  }
+
+  .stash-badge-gold {
+    background: linear-gradient(180deg, #f0c563 0%, #a9731f 100%);
+  }
+
+  .stash-badge-teal {
+    background: linear-gradient(180deg, #62d6d0 0%, #1f6e68 100%);
+  }
+
+  .stash-badge-indigo {
+    background: linear-gradient(180deg, #7d84d9 0%, #3d2f80 100%);
+  }
+
+  .stash-badge-rose {
+    background: linear-gradient(180deg, #e984a8 0%, #9e365f 100%);
+  }
+
+  .stash-badge-crimson {
+    background: linear-gradient(180deg, #e96f7f 0%, #8c2336 100%);
+  }
+
+  .stash-badge-green {
+    background: linear-gradient(180deg, #90c761 0%, #47742d 100%);
   }
 
   .load-button {
@@ -1512,6 +1591,17 @@
   .load-button:disabled {
     opacity: 0.54;
     cursor: default;
+  }
+
+  .icon-select-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+  }
+
+  .icon-select-row select {
+    min-width: 0;
   }
 
   .history-list {
@@ -1611,6 +1701,14 @@
       0 12px 20px rgba(86, 18, 8, 0.26);
   }
 
+  .random-button-content {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    line-height: 1;
+  }
+
   .random-button:disabled {
     cursor: default;
     opacity: 0.78;
@@ -1705,126 +1803,6 @@
     border-radius: 999px;
     background: #59f0e7;
     box-shadow: 0 0 10px rgba(89, 240, 231, 0.5);
-  }
-
-  .utility-panel {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-  }
-
-  .wide-knob-panel {
-    justify-content: space-evenly;
-    padding-inline: 18px;
-  }
-
-  .utility-cluster span {
-    color: #f1d89c;
-    font-family: var(--font-display);
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    font-size: 0.8rem;
-    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
-  }
-
-  .utility-cluster {
-    position: relative;
-    display: grid;
-    gap: 12px;
-    justify-items: center;
-    min-width: 96px;
-    padding: 14px 10px 6px;
-  }
-
-  .utility-cluster::before {
-    content: "";
-    position: absolute;
-    top: 4px;
-    width: 94px;
-    height: 94px;
-    border-radius: 999px;
-    background:
-      repeating-conic-gradient(
-        from -110deg,
-        rgba(241, 216, 156, 0.95) 0deg 1.6deg,
-        transparent 1.6deg 11deg
-      );
-    mask: radial-gradient(circle, transparent 0 32px, #000 33px 47px, transparent 48px);
-    opacity: 0.72;
-    pointer-events: none;
-  }
-
-  .knob {
-    position: relative;
-    z-index: 1;
-    width: 78px;
-    aspect-ratio: 1;
-    border-radius: 999px;
-    background:
-      radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.78), transparent 14%),
-      repeating-radial-gradient(circle, rgba(84, 61, 40, 0.15) 0 2px, transparent 2px 6px),
-      radial-gradient(circle, #f0e1c8 0%, #c7b091 46%, #735b45 72%, #241a13 100%);
-    box-shadow:
-      inset 0 2px 0 rgba(255, 255, 255, 0.36),
-      inset 0 -5px 8px rgba(52, 32, 17, 0.42),
-      0 8px 16px rgba(0, 0, 0, 0.32),
-      0 0 0 4px rgba(36, 23, 15, 0.72);
-  }
-
-  .knob::before {
-    content: "";
-    position: absolute;
-    left: 50%;
-    top: 12px;
-    width: 4px;
-    height: 24px;
-    border-radius: 999px;
-    transform: translateX(-50%);
-    background: linear-gradient(180deg, #2d1c10 0%, #8f5e25 100%);
-    box-shadow: 0 0 0 1px rgba(255, 228, 177, 0.14);
-  }
-
-  .knob::after {
-    content: "";
-    position: absolute;
-    inset: 20px;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 247, 225, 0.24);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
-  }
-
-  .utility-cluster:first-child .knob {
-    transform: rotate(34deg);
-  }
-
-  .utility-cluster:nth-child(2) .knob {
-    transform: rotate(8deg);
-  }
-
-  .utility-cluster:last-child .knob {
-    transform: rotate(16deg);
-  }
-
-  .utility-cluster:first-child::after,
-  .utility-cluster:nth-child(2)::after,
-  .utility-cluster:last-child::after {
-    position: absolute;
-    bottom: 32px;
-    font-family: var(--font-display);
-    font-size: 0.72rem;
-    color: #f1d89c;
-    letter-spacing: 0.12em;
-    opacity: 0.8;
-  }
-
-  .utility-cluster:first-child::after {
-    content: "MIN        MAX";
-  }
-
-  .utility-cluster:nth-child(2)::after,
-  .utility-cluster:last-child::after {
-    content: "−          +";
   }
 
   .source-panel,
@@ -2269,12 +2247,6 @@
     letter-spacing: 0.01em;
   }
 
-  .chip-active {
-    background:
-      linear-gradient(180deg, #d96c43 0%, #bb4d2f 100%);
-    color: #ffe7c5;
-  }
-
   @media (max-width: 1240px) {
     .grid {
       grid-template-columns: 1fr;
@@ -2293,6 +2265,10 @@
     .meta-strip {
       grid-template-columns: 1fr;
       gap: 8px;
+    }
+
+    .icon-select-row {
+      gap: 10px;
     }
   }
 
@@ -2339,6 +2315,10 @@
         0 18px 28px rgba(54, 12, 7, 0.28);
     }
 
+    .random-button-content {
+      min-height: 34px;
+    }
+
     .bottom-strip {
       grid-template-columns: 1fr;
       gap: 12px;
@@ -2353,8 +2333,6 @@
       padding: 14px;
     }
 
-    .panel-header,
-    .filters-head,
     .queue-section-header,
     .stash-card-top,
     .source-actions {
@@ -2394,6 +2372,10 @@
       min-height: 64px;
       font-size: 1.5rem;
       letter-spacing: 0.08em;
+    }
+
+    .random-button-content {
+      min-height: 34px;
     }
 
     .lcd-copy {

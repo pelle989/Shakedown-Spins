@@ -1,7 +1,13 @@
+<script context="module" lang="ts">
+  let vinylLoaderId = 0;
+</script>
+
 <script lang="ts">
   export let active = false;
   export let animated = true;
   export let size = 64;
+
+  const clipId = `vinyl-label-clip-${++vinylLoaderId}`;
 </script>
 
 <svg
@@ -14,7 +20,7 @@
   aria-hidden="true"
 >
   <defs>
-    <clipPath id="label-clip">
+    <clipPath id={clipId}>
       <circle cx="50" cy="50" r="16.2" />
     </clipPath>
   </defs>
@@ -32,7 +38,7 @@
       width="32.4"
       height="32.4"
       preserveAspectRatio="xMidYMid slice"
-      clip-path="url(#label-clip)"
+      clip-path={`url(#${clipId})`}
     />
     <circle class="label-ring" cx="50" cy="50" r="16.5" />
     <circle class="accent" cx="50" cy="50" r="3" />
@@ -42,6 +48,9 @@
 
 <style>
   .record-loader {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
     transform-origin: 50% 50%;
     transform-box: fill-box;
     animation:
@@ -112,6 +121,7 @@
 
   .label-art {
     opacity: 0.98;
+    transform-origin: 50% 50%;
   }
 
   .label-ring {
