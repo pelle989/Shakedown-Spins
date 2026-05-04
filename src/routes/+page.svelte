@@ -4,7 +4,6 @@
   import { buildFilterOptions, emptyFilters, filterAlbums } from '$lib/filters';
   import { nextPick, createRandomizerState, type RandomizerState } from '$lib/randomizer';
   import { clearActiveStashId, loadActiveStashId, saveActiveStashId } from '$lib/session';
-  import { DEFAULT_STASH_BADGE_KEY, getStashBadge, STASH_BADGES } from '$lib/stash-badges';
   import type {
     ActiveCollectionState,
     Album,
@@ -29,6 +28,7 @@
   let loadingStashId = $state<string | null>(null);
   let uploadError = $state<string | null>(null);
   let uploadSuccess = $state<string | null>(null);
+  let stashNameError = $state<string | null>(null);
   let selectedFile: File | null = $state(null);
   let preview: UploadPreview | null = $state(null);
   let currentPick = $state<Album | null>(null);
@@ -45,7 +45,6 @@
   let filterDialPage = $state({ genre: 0, decade: 0 });
   let filterTouchStartX = $state<number | null>(null);
   let stashName = $state('');
-  let stashBadgeKey = $state(DEFAULT_STASH_BADGE_KEY);
   let sourceCollapsed = $state(true);
   let availableStashesSection: HTMLElement | null = null;
   const stashTimestampFormatter = new Intl.DateTimeFormat('en-US', {
@@ -91,7 +90,7 @@
           name: activeState.collection.source.label,
           albumCount: activeState.collection.albums.length,
           createdAt: new Date().toISOString(),
-          stashBadgeKey: DEFAULT_STASH_BADGE_KEY,
+          stashBadgeKey: '',
           stashPreview: []
         }
       : null
@@ -136,10 +135,6 @@
         return character === character.toLowerCase() ? randomCharacter.toLowerCase() : randomCharacter;
       })
       .join('');
-  }
-
-  function pickRandomStashBadgeKey() {
-    return STASH_BADGES[Math.floor(Math.random() * STASH_BADGES.length)]?.key ?? DEFAULT_STASH_BADGE_KEY;
   }
 
   function startTextShuffle(title: string, artist: string, duration = 650) {
@@ -377,7 +372,6 @@
 
   onMount(() => {
     defineRollingDice();
-    stashBadgeKey = pickRandomStashBadgeKey();
     void restoreSession();
   });
 
@@ -444,6 +438,12 @@
     event.preventDefault();
     uploadError = null;
     uploadSuccess = null;
+    stashNameError = null;
+
+    if (!stashName.trim()) {
+      stashNameError = 'Stash name is required.';
+      return;
+    }
 
     if (!selectedFile || !preview || preview.validAlbums === 0) {
       uploadError = 'Choose a valid CSV file before uploading.';
@@ -453,7 +453,6 @@
     pendingUpload = true;
     const formData = new FormData();
     formData.set('name', stashName);
-    formData.set('stashBadgeKey', stashBadgeKey);
     formData.set('file', selectedFile);
 
     try {
@@ -463,6 +462,10 @@
       });
       const payload = (await response.json()) as { message?: string; stash?: StashSummary };
       if (!response.ok || !payload.stash) {
+        if (payload.message === 'Stash name is required.') {
+          stashNameError = payload.message;
+          return;
+        }
         uploadError = payload.message ?? 'Upload failed.';
         return;
       }
@@ -897,9 +900,6 @@
             <article class="stash-card record-card loaded-stash-card">
               <div class="stash-card-top">
                 <div class="stash-card-heading">
-                  <span class={`stash-badge stash-badge-${getStashBadge(activeStashSummary.stashBadgeKey).tone}`}>
-                    {getStashBadge(activeStashSummary.stashBadgeKey).symbol}
-                  </span>
                   <div>
                     <h3>{activeStashSummary.name}</h3>
                     <p>{activeStashSummary.albumCount} albums loaded into the receiver</p>
@@ -919,13 +919,11 @@
           </div>
         {:else}
           <div class="crate-feed">
-            {#each stashes as stash}
+            {#each stashes as stash, index}
               <article class="stash-card record-card">
                 <div class="stash-card-top">
                   <div class="stash-card-heading">
-                    <span class={`stash-badge stash-badge-${getStashBadge(stash.stashBadgeKey).tone}`}>
-                      {getStashBadge(stash.stashBadgeKey).symbol}
-                    </span>
+                    <span class="stash-index">{index + 1}</span>
                     <div>
                       <h3>{stash.name}</h3>
                       <p>{stash.albumCount} albums · {formatStashTimestamp(stash.createdAt)}</p>
@@ -956,23 +954,18 @@
 
         {#if !sourceCollapsed}
           <form onsubmit={submitUpload} class="upload-form compact-upload">
-            <label>
+            <label class:field-error={!!stashNameError}>
               <span>Stash Name</span>
-              <input bind:value={stashName} maxlength="100" placeholder="Collection Name" />
-            </label>
-
-            <label>
-              <span>Collection Icon</span>
-              <div class="icon-select-row">
-                <span class={`stash-badge stash-badge-${getStashBadge(stashBadgeKey).tone}`}>
-                  {getStashBadge(stashBadgeKey).symbol}
-                </span>
-                <select bind:value={stashBadgeKey}>
-                  {#each STASH_BADGES as badge}
-                    <option value={badge.key}>{badge.label}</option>
-                  {/each}
-                </select>
-              </div>
+              <input
+                bind:value={stashName}
+                class:input-error={!!stashNameError}
+                maxlength="100"
+                placeholder="Collection Name"
+                oninput={() => (stashNameError = null)}
+              />
+              {#if stashNameError}
+                <p class="field-error-text">{stashNameError}</p>
+              {/if}
             </label>
 
             <label>
@@ -1569,65 +1562,34 @@
 
   .stash-card-heading {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto auto minmax(0, 1fr);
     align-items: center;
     gap: 12px;
     min-width: 0;
+  }
+
+  .stash-index {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    font-family: var(--font-display);
+    font-size: 0.82rem;
+    letter-spacing: 0.04em;
+    color: rgba(111, 52, 23, 0.88);
+    background:
+      linear-gradient(180deg, rgba(255, 246, 226, 0.82), rgba(228, 203, 151, 0.92));
+    border: 1px solid rgba(140, 88, 41, 0.18);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.36),
+      0 2px 6px rgba(61, 28, 11, 0.08);
   }
 
   .stash-card-top p {
     margin: 4px 0 0;
     color: rgba(70, 43, 22, 0.76);
     font-size: 0.9rem;
-  }
-
-  .stash-badge {
-    width: 42px;
-    height: 42px;
-    flex: 0 0 42px;
-    display: grid;
-    place-items: center;
-    border-radius: 999px;
-    font-family: var(--font-display);
-    font-size: 1.2rem;
-    line-height: 1;
-    color: #fff7e8;
-    border: 1px solid rgba(63, 38, 20, 0.18);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.18),
-      0 3px 8px rgba(41, 21, 10, 0.12);
-  }
-
-  .stash-badge-amber {
-    background: linear-gradient(180deg, #d5a84f 0%, #9d6423 100%);
-  }
-
-  .stash-badge-red {
-    background: linear-gradient(180deg, #e76d57 0%, #9f2b25 100%);
-  }
-
-  .stash-badge-gold {
-    background: linear-gradient(180deg, #f0c563 0%, #a9731f 100%);
-  }
-
-  .stash-badge-teal {
-    background: linear-gradient(180deg, #62d6d0 0%, #1f6e68 100%);
-  }
-
-  .stash-badge-indigo {
-    background: linear-gradient(180deg, #7d84d9 0%, #3d2f80 100%);
-  }
-
-  .stash-badge-rose {
-    background: linear-gradient(180deg, #e984a8 0%, #9e365f 100%);
-  }
-
-  .stash-badge-crimson {
-    background: linear-gradient(180deg, #e96f7f 0%, #8c2336 100%);
-  }
-
-  .stash-badge-green {
-    background: linear-gradient(180deg, #90c761 0%, #47742d 100%);
   }
 
   .load-button {
@@ -1669,17 +1631,6 @@
   .clear-stash-button {
     min-width: 92px;
     padding-inline: 15px;
-  }
-
-  .icon-select-row {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: 12px;
-  }
-
-  .icon-select-row select {
-    min-width: 0;
   }
 
   .history-list {
@@ -2081,6 +2032,10 @@
     font-size: 0.92rem;
   }
 
+  .field-error span {
+    color: #f3b0a2;
+  }
+
   input {
     width: 100%;
     box-sizing: border-box;
@@ -2092,6 +2047,20 @@
     color: var(--color-text);
     padding: 12px 14px;
     font: inherit;
+  }
+
+  .input-error {
+    border-color: rgba(207, 47, 47, 0.72);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 219, 211, 0.08),
+      0 0 0 1px rgba(207, 47, 47, 0.22);
+  }
+
+  .field-error-text {
+    margin: 0;
+    color: #f8b4a6;
+    font-size: 0.84rem;
+    line-height: 1.2;
   }
 
   button {
@@ -2363,9 +2332,6 @@
       gap: 8px;
     }
 
-    .icon-select-row {
-      gap: 10px;
-    }
   }
 
   @media (max-width: 860px) {
