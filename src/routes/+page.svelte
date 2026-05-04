@@ -46,6 +46,8 @@
   let filterTouchStartX = $state<number | null>(null);
   let stashName = $state('');
   let stashBadgeKey = $state(DEFAULT_STASH_BADGE_KEY);
+  let sourceCollapsed = $state(true);
+  let availableStashesSection: HTMLElement | null = null;
   const stashTimestampFormatter = new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric'
@@ -134,6 +136,10 @@
         return character === character.toLowerCase() ? randomCharacter.toLowerCase() : randomCharacter;
       })
       .join('');
+  }
+
+  function pickRandomStashBadgeKey() {
+    return STASH_BADGES[Math.floor(Math.random() * STASH_BADGES.length)]?.key ?? DEFAULT_STASH_BADGE_KEY;
   }
 
   function startTextShuffle(title: string, artist: string, duration = 650) {
@@ -371,6 +377,7 @@
 
   onMount(() => {
     defineRollingDice();
+    stashBadgeKey = pickRandomStashBadgeKey();
     void restoreSession();
   });
 
@@ -502,6 +509,13 @@
     }
   }
 
+  function scrollToAvailableStashes() {
+    availableStashesSection?.scrollIntoView({
+      block: 'start',
+      behavior: 'smooth'
+    });
+  }
+
   async function loadArt(album: Album) {
     const key = `${album.artist}::${album.title}`.toLowerCase();
     if (coverCache.has(key)) {
@@ -603,12 +617,12 @@
 </script>
 
 <svelte:head>
-  <title>Turntable Station</title>
+  <title>Shakedown Spins</title>
   <meta
     name="description"
     content="Load a public stash, roll a random album, and keep the music moving."
   />
-  <meta property="og:title" content="Turntable Station" />
+  <meta property="og:title" content="Shakedown Spins" />
   <meta
     property="og:description"
     content="Load a public stash, roll a random album, and keep the music moving."
@@ -668,14 +682,9 @@
                 {/key}
               {:else if activeState.status === 'idle'}
                 <div class="pick-reveal">
-                  <div class="readout-row">
-                    <span class="readout-label">Album</span>
-                    <h3>No stash loaded</h3>
-                  </div>
-                  <div class="readout-row">
-                    <span class="readout-label">Artist</span>
-                    <p class="artist">Pick one from the crate to wake the platter.</p>
-                  </div>
+                  <button class="jump-to-stashes" type="button" onclick={scrollToAvailableStashes}>
+                    Load a Stash
+                  </button>
                 </div>
               {:else}
                 <div class="pick-reveal">
@@ -691,20 +700,22 @@
               {/if}
             </div>
 
-            <div class="meta-strip">
-              <div class="meta-cell">
-                <span class="meta-label">Year</span>
-                <span class="meta-value">{currentPick?.year ?? '—'}</span>
+            {#if activeState.status !== 'idle'}
+              <div class="meta-strip">
+                <div class="meta-cell">
+                  <span class="meta-label">Year</span>
+                  <span class="meta-value">{currentPick?.year ?? '—'}</span>
+                </div>
+                <div class="meta-cell">
+                  <span class="meta-label">Label</span>
+                  <span class="meta-value">{currentPick?.label ?? '—'}</span>
+                </div>
+                <div class="meta-cell">
+                  <span class="meta-label">Format</span>
+                  <span class="meta-value">{currentPick?.format ?? '—'}</span>
+                </div>
               </div>
-              <div class="meta-cell">
-                <span class="meta-label">Label</span>
-                <span class="meta-value">{currentPick?.label ?? '—'}</span>
-              </div>
-              <div class="meta-cell">
-                <span class="meta-label">Format</span>
-                <span class="meta-value">{currentPick?.format ?? '—'}</span>
-              </div>
-            </div>
+            {/if}
 
             {#if restoringMessage}
               <p class="status-note">{restoringMessage}</p>
@@ -714,7 +725,12 @@
       </section>
 
       <div class="queue-column">
-        <button class="random-button" onclick={rollNext} disabled={activeState.status !== 'loaded' || filteredAlbums.length === 0 || rollingSelection}>
+        <button
+          class:random-button-idle={activeState.status === 'idle'}
+          class="random-button"
+          onclick={rollNext}
+          disabled={activeState.status !== 'loaded' || filteredAlbums.length === 0 || rollingSelection}
+        >
           <span class="random-button-content">
             {#if rollingSelection}
               <rolling-dice size="34" duration="500"></rolling-dice>
@@ -764,128 +780,6 @@
     </section>
 
     <section class="bottom-strip panel">
-      <section class="bottom-panel crate-panel queue-section bottom-stashes">
-        <div class="queue-section-header">
-          <h3>{activeState.status === 'loaded' ? 'Loaded Stash' : 'Available Stashes'}</h3>
-          {#if activeState.status === 'loaded'}
-            <div class="filter-actions stash-panel-actions">
-              <button class="text-button" type="button" onclick={unloadStash}>Clear</button>
-            </div>
-          {:else}
-            <span>{stashes.length} loaded into the room</span>
-          {/if}
-        </div>
-
-        {#if activeState.status === 'loaded' && activeStashSummary}
-          <div class="crate-feed loaded-crate-feed">
-            <article class="stash-card record-card loaded-stash-card">
-              <div class="stash-card-top">
-                <div class="stash-card-heading">
-                  <span class={`stash-badge stash-badge-${getStashBadge(activeStashSummary.stashBadgeKey).tone}`}>
-                    {getStashBadge(activeStashSummary.stashBadgeKey).symbol}
-                  </span>
-                  <div>
-                    <h3>{activeStashSummary.name}</h3>
-                    <p>{activeStashSummary.albumCount} albums loaded into the receiver</p>
-                  </div>
-                </div>
-                <span class="loaded-indicator">Live</span>
-              </div>
-            </article>
-          </div>
-        {:else if stashes.length === 0}
-          <div class="empty-state">
-            <h3>No public stashes yet</h3>
-            <p>Upload the first stack below.</p>
-          </div>
-        {:else}
-          <div class="crate-feed">
-            {#each stashes as stash}
-              <article class="stash-card record-card">
-                <div class="stash-card-top">
-                  <div class="stash-card-heading">
-                    <span class={`stash-badge stash-badge-${getStashBadge(stash.stashBadgeKey).tone}`}>
-                      {getStashBadge(stash.stashBadgeKey).symbol}
-                    </span>
-                    <div>
-                      <h3>{stash.name}</h3>
-                      <p>{stash.albumCount} albums · {formatStashTimestamp(stash.createdAt)}</p>
-                    </div>
-                  </div>
-                  <button
-                    class="load-button"
-                    type="button"
-                    disabled={loadingStashId === stash.id}
-                    onclick={() => loadStash(stash.id)}
-                  >
-                    {loadingStashId === stash.id ? 'Loading...' : 'Load Stash'}
-                  </button>
-                </div>
-              </article>
-            {/each}
-          </div>
-        {/if}
-      </section>
-
-      <section class="bottom-panel source-panel">
-        <div class="queue-section-header">
-          <h3>Source</h3>
-        </div>
-
-        <form onsubmit={submitUpload} class="upload-form compact-upload">
-          <label>
-            <span>Stash Name</span>
-            <input bind:value={stashName} maxlength="100" placeholder="Collection Name" />
-          </label>
-
-          <label>
-            <span>Collection Icon</span>
-            <div class="icon-select-row">
-              <span class={`stash-badge stash-badge-${getStashBadge(stashBadgeKey).tone}`}>
-                {getStashBadge(stashBadgeKey).symbol}
-              </span>
-              <select bind:value={stashBadgeKey}>
-                {#each STASH_BADGES as badge}
-                  <option value={badge.key}>{badge.label}</option>
-                {/each}
-              </select>
-            </div>
-          </label>
-
-          <label>
-            <span>CSV File</span>
-            <input id="stash-file" type="file" accept=".csv,text/csv" onchange={handleFileChange} />
-          </label>
-
-          <div class="source-status">
-            {#if preview}
-              <p class="status-note">
-                Found {preview.validAlbums} valid albums, {preview.skippedRows} rows skipped.
-              </p>
-            {/if}
-
-            {#if uploadError}
-              <p class="status-error">{uploadError}</p>
-            {/if}
-
-            {#if uploadSuccess}
-              <p class="status-success">{uploadSuccess}</p>
-            {/if}
-          </div>
-
-          <div class="source-actions">
-            <button type="submit" disabled={pendingUpload || !preview || preview.validAlbums === 0}>
-              {pendingUpload ? 'Uploading...' : 'Upload Stash'}
-            </button>
-            {#if pendingUpload}
-              <div class="pending-inline">
-                <VinylLoader size={30} active={true} />
-              </div>
-            {/if}
-          </div>
-        </form>
-      </section>
-
       <section class="bottom-panel filter-panel">
         {#if activeState.status === 'loaded'}
           <div class="selector-bank">
@@ -987,6 +881,134 @@
               </div>
             </div>
           </div>
+        {/if}
+      </section>
+
+      <section bind:this={availableStashesSection} class="bottom-panel crate-panel queue-section bottom-stashes">
+        <div class="queue-section-header">
+          <h3>{activeState.status === 'loaded' ? 'Loaded Stash' : 'Available Stashes'}</h3>
+          {#if activeState.status !== 'loaded'}
+            <span>{stashes.length} loaded into the room</span>
+          {/if}
+        </div>
+
+        {#if activeState.status === 'loaded' && activeStashSummary}
+          <div class="crate-feed loaded-crate-feed">
+            <article class="stash-card record-card loaded-stash-card">
+              <div class="stash-card-top">
+                <div class="stash-card-heading">
+                  <span class={`stash-badge stash-badge-${getStashBadge(activeStashSummary.stashBadgeKey).tone}`}>
+                    {getStashBadge(activeStashSummary.stashBadgeKey).symbol}
+                  </span>
+                  <div>
+                    <h3>{activeStashSummary.name}</h3>
+                    <p>{activeStashSummary.albumCount} albums loaded into the receiver</p>
+                  </div>
+                </div>
+                <div class="loaded-stash-actions">
+                  <span class="loaded-indicator">Live</span>
+                  <button class="load-button clear-stash-button" type="button" onclick={unloadStash}>Clear</button>
+                </div>
+              </div>
+            </article>
+          </div>
+        {:else if stashes.length === 0}
+          <div class="empty-state">
+            <h3>No public stashes yet</h3>
+            <p>Upload the first stack below.</p>
+          </div>
+        {:else}
+          <div class="crate-feed">
+            {#each stashes as stash}
+              <article class="stash-card record-card">
+                <div class="stash-card-top">
+                  <div class="stash-card-heading">
+                    <span class={`stash-badge stash-badge-${getStashBadge(stash.stashBadgeKey).tone}`}>
+                      {getStashBadge(stash.stashBadgeKey).symbol}
+                    </span>
+                    <div>
+                      <h3>{stash.name}</h3>
+                      <p>{stash.albumCount} albums · {formatStashTimestamp(stash.createdAt)}</p>
+                    </div>
+                  </div>
+                  <button
+                    class="load-button"
+                    type="button"
+                    disabled={loadingStashId === stash.id}
+                    onclick={() => loadStash(stash.id)}
+                  >
+                    {loadingStashId === stash.id ? 'Loading...' : 'Load Stash'}
+                  </button>
+                </div>
+              </article>
+            {/each}
+          </div>
+        {/if}
+      </section>
+
+      <section class="bottom-panel source-panel">
+        <div class="queue-section-header">
+          <h3>Source</h3>
+          <button class="text-button" type="button" onclick={() => (sourceCollapsed = !sourceCollapsed)}>
+            {sourceCollapsed ? 'Open' : 'Close'}
+          </button>
+        </div>
+
+        {#if !sourceCollapsed}
+          <form onsubmit={submitUpload} class="upload-form compact-upload">
+            <label>
+              <span>Stash Name</span>
+              <input bind:value={stashName} maxlength="100" placeholder="Collection Name" />
+            </label>
+
+            <label>
+              <span>Collection Icon</span>
+              <div class="icon-select-row">
+                <span class={`stash-badge stash-badge-${getStashBadge(stashBadgeKey).tone}`}>
+                  {getStashBadge(stashBadgeKey).symbol}
+                </span>
+                <select bind:value={stashBadgeKey}>
+                  {#each STASH_BADGES as badge}
+                    <option value={badge.key}>{badge.label}</option>
+                  {/each}
+                </select>
+              </div>
+            </label>
+
+            <label>
+              <span>CSV File</span>
+              <input id="stash-file" type="file" accept=".csv,text/csv" onchange={handleFileChange} />
+            </label>
+
+            <div class="source-status">
+              {#if preview}
+                <p class="status-note">
+                  Found {preview.validAlbums} valid albums, {preview.skippedRows} rows skipped.
+                </p>
+              {/if}
+
+              {#if uploadError}
+                <p class="status-error">{uploadError}</p>
+              {/if}
+
+              {#if uploadSuccess}
+                <p class="status-success">{uploadSuccess}</p>
+              {/if}
+            </div>
+
+            <div class="source-actions">
+              <button class="load-button upload-button" type="submit" disabled={pendingUpload || !preview || preview.validAlbums === 0}>
+                {pendingUpload ? 'Uploading...' : 'Upload Stash'}
+              </button>
+              {#if pendingUpload}
+                <div class="pending-inline">
+                  <VinylLoader size={30} active={true} />
+                </div>
+              {/if}
+            </div>
+          </form>
+        {:else}
+          <p class="status-note source-collapsed-note">Open Source to upload a new stash.</p>
         {/if}
       </section>
     </section>
@@ -1390,7 +1412,7 @@
     font-size: 0.68rem;
     letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: rgba(144, 233, 224, 0.74);
+    color: rgba(207, 47, 47, 0.72);
   }
 
   .lcd-copy h3 {
@@ -1417,6 +1439,42 @@
     text-align: left;
   }
 
+  .jump-to-stashes {
+    justify-self: center;
+    align-self: start;
+    margin-top: 8px;
+    min-width: 132px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background:
+      linear-gradient(180deg, #f3e6c9 0%, #e1c895 100%);
+    border: 2px solid rgba(207, 47, 47, 0.72);
+    color: #7f1f1f;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    line-height: 1.1;
+    white-space: nowrap;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 246, 225, 0.52),
+      0 0 0 1px rgba(255, 134, 101, 0.14),
+      0 6px 12px rgba(122, 41, 18, 0.16);
+  }
+
+  .jump-to-stashes:hover:not(:disabled),
+  .jump-to-stashes:focus-visible:not(:disabled) {
+    transform: translateY(-1px) scale(1.02);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 246, 225, 0.52),
+      0 0 0 1px rgba(255, 134, 101, 0.18),
+      0 8px 14px rgba(122, 41, 18, 0.18);
+  }
+
+  .pick-reveal:has(.jump-to-stashes) {
+    min-height: 100%;
+    place-content: center;
+    justify-items: center;
+  }
+
   .meta-strip {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1440,7 +1498,7 @@
     font-size: 0.62rem;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: rgba(145, 210, 203, 0.62);
+    color: rgba(207, 47, 47, 0.72);
   }
 
   .meta-value {
@@ -1482,8 +1540,13 @@
     padding: 20px 12px 12px;
     border-radius: 18px;
     background:
-      linear-gradient(180deg, rgba(37, 18, 11, 0.22), transparent 14%),
-      linear-gradient(180deg, #261208 0%, #170b05 100%);
+      linear-gradient(180deg, rgba(255, 239, 204, 0.08), transparent 12%),
+      linear-gradient(180deg, rgba(64, 36, 20, 0.48), transparent 28%),
+      linear-gradient(180deg, #2a150b 0%, #1a0d06 100%);
+    border: 1px solid rgba(255, 223, 169, 0.08);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 241, 214, 0.05),
+      inset 0 -1px 0 rgba(8, 4, 2, 0.3);
   }
 
   .stash-card {
@@ -1569,28 +1632,43 @@
 
   .load-button {
     align-self: start;
-    min-width: 108px;
-    padding: 12px 16px;
-    border-radius: 14px;
+    min-width: 96px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 2px solid rgba(207, 47, 47, 0.72);
     background:
-      linear-gradient(180deg, #d96c43 0%, #bf512f 58%, #963721 100%);
-    color: #fff0cf;
+      linear-gradient(180deg, #f3e6c9 0%, #e1c895 100%);
+    color: #7f1f1f;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
     box-shadow:
-      inset 0 1px 0 rgba(255, 227, 183, 0.3),
-      0 6px 12px rgba(122, 41, 18, 0.22);
+      inset 0 1px 0 rgba(255, 246, 225, 0.52),
+      0 0 0 1px rgba(255, 134, 101, 0.14),
+      0 6px 12px rgba(122, 41, 18, 0.16);
   }
 
   .load-button:hover:not(:disabled),
   .load-button:focus-visible:not(:disabled) {
     transform: translateY(-1px) scale(1.02);
     box-shadow:
-      inset 0 1px 0 rgba(255, 227, 183, 0.3),
-      0 8px 14px rgba(122, 41, 18, 0.24);
+      inset 0 1px 0 rgba(255, 246, 225, 0.52),
+      0 0 0 1px rgba(255, 134, 101, 0.18),
+      0 8px 14px rgba(122, 41, 18, 0.18);
   }
 
   .load-button:disabled {
     opacity: 0.54;
     cursor: default;
+  }
+
+  .upload-button {
+    align-self: stretch;
+  }
+
+  .clear-stash-button {
+    min-width: 92px;
+    padding-inline: 15px;
   }
 
   .icon-select-row {
@@ -1662,6 +1740,11 @@
     object-fit: cover;
   }
 
+  .history-art :global(.record-loader) {
+    width: 100%;
+    height: 100%;
+  }
+
   .history-copy {
     display: grid;
     gap: 6px;
@@ -1712,6 +1795,12 @@
   .random-button:disabled {
     cursor: default;
     opacity: 0.78;
+  }
+
+  .random-button-idle,
+  .random-button-idle:disabled {
+    opacity: 0.38;
+    filter: saturate(0.72) brightness(0.92);
   }
 
   .random-button:hover:not(:disabled),
@@ -1772,8 +1861,11 @@
       0 14px 24px rgba(67, 28, 13, 0.12);
   }
 
-  .stash-panel-actions {
-    align-items: center;
+  .loaded-stash-actions {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
   }
 
   .loaded-indicator {
@@ -1810,6 +1902,10 @@
     display: grid;
     gap: 12px;
     align-content: start;
+  }
+
+  .source-collapsed-note {
+    margin-top: 4px;
   }
 
   .selector-bank {
@@ -2304,8 +2400,9 @@
       position: fixed;
       left: 12px;
       right: 12px;
-      bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      bottom: env(safe-area-inset-bottom, 0px);
       z-index: 40;
+      height: 70px;
       min-height: 70px;
       padding: 14px 18px 16px;
       font-size: 1.72rem;
@@ -2334,10 +2431,19 @@
     }
 
     .queue-section-header,
-    .stash-card-top,
     .source-actions {
       flex-direction: column;
       align-items: flex-start;
+    }
+
+    .stash-card-top {
+      flex-direction: row;
+      align-items: flex-start;
+    }
+
+    .stash-card-top .load-button {
+      flex: 0 0 auto;
+      margin-left: auto;
     }
   }
 
@@ -2368,7 +2474,8 @@
     .random-button {
       left: 10px;
       right: 10px;
-      bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+      bottom: env(safe-area-inset-bottom, 0px);
+      height: 64px;
       min-height: 64px;
       font-size: 1.5rem;
       letter-spacing: 0.08em;
@@ -2376,6 +2483,17 @@
 
     .random-button-content {
       min-height: 34px;
+    }
+
+    .stash-card-top {
+      gap: 10px;
+    }
+
+    .stash-card-top .load-button {
+      min-width: 88px;
+      padding: 9px 12px;
+      font-size: 0.72rem;
+      letter-spacing: 0.03em;
     }
 
     .lcd-copy {
