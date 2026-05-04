@@ -47,6 +47,8 @@
   let stashName = $state('');
   let sourceCollapsed = $state(true);
   let availableStashesSection: HTMLElement | null = null;
+  let highlightAvailableStashes = $state(false);
+  let availableStashesHighlightTimeout: number | null = null;
   const stashTimestampFormatter = new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric'
@@ -117,6 +119,11 @@
     if (titleShuffleTimeout) {
       window.clearTimeout(titleShuffleTimeout);
       titleShuffleTimeout = null;
+    }
+
+    if (availableStashesHighlightTimeout) {
+      window.clearTimeout(availableStashesHighlightTimeout);
+      availableStashesHighlightTimeout = null;
     }
   }
 
@@ -513,6 +520,14 @@
   }
 
   function scrollToAvailableStashes() {
+    highlightAvailableStashes = true;
+    if (availableStashesHighlightTimeout) {
+      window.clearTimeout(availableStashesHighlightTimeout);
+    }
+    availableStashesHighlightTimeout = window.setTimeout(() => {
+      highlightAvailableStashes = false;
+      availableStashesHighlightTimeout = null;
+    }, 1800);
     availableStashesSection?.scrollIntoView({
       block: 'start',
       behavior: 'smooth'
@@ -887,7 +902,11 @@
         {/if}
       </section>
 
-      <section bind:this={availableStashesSection} class="bottom-panel crate-panel queue-section bottom-stashes">
+      <section
+        bind:this={availableStashesSection}
+        class:bottom-stashes-highlighted={highlightAvailableStashes}
+        class="bottom-panel crate-panel queue-section bottom-stashes"
+      >
         <div class="queue-section-header">
           <h3>{activeState.status === 'loaded' ? 'Loaded Stash' : 'Available Stashes'}</h3>
           {#if activeState.status !== 'loaded'}
@@ -897,6 +916,7 @@
 
         {#if activeState.status === 'loaded' && activeStashSummary}
           <div class="crate-feed loaded-crate-feed">
+            <span class="loaded-indicator">Live</span>
             <article class="stash-card record-card loaded-stash-card">
               <div class="stash-card-top">
                 <div class="stash-card-heading">
@@ -906,7 +926,6 @@
                   </div>
                 </div>
                 <div class="loaded-stash-actions">
-                  <span class="loaded-indicator">Live</span>
                   <button class="load-button clear-stash-button" type="button" onclick={unloadStash}>Clear</button>
                 </div>
               </div>
@@ -1436,15 +1455,15 @@
     justify-self: center;
     align-self: start;
     margin-top: 8px;
-    min-width: 132px;
-    padding: 10px 14px;
+    min-width: 168px;
+    padding: 13px 20px;
     border-radius: 12px;
     background:
       linear-gradient(180deg, #f3e6c9 0%, #e1c895 100%);
     border: 2px solid rgba(207, 47, 47, 0.72);
     color: #7f1f1f;
-    font-size: 0.8rem;
-    letter-spacing: 0.04em;
+    font-size: 0.92rem;
+    letter-spacing: 0.05em;
     line-height: 1.1;
     white-space: nowrap;
     box-shadow:
@@ -1466,6 +1485,32 @@
     min-height: 100%;
     place-content: center;
     justify-items: center;
+  }
+
+  .bottom-stashes-highlighted {
+    position: relative;
+    border-color: rgba(229, 83, 58, 0.82);
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -2px 4px rgba(46, 40, 35, 0.26),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+      0 0 0 4px rgba(229, 83, 58, 0.34),
+      0 0 36px rgba(229, 83, 58, 0.28),
+      var(--shadow-panel);
+  }
+
+  .bottom-stashes-highlighted::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background:
+      linear-gradient(180deg, rgba(255, 161, 115, 0.16), rgba(255, 112, 70, 0.08)),
+      radial-gradient(circle at 50% 30%, rgba(255, 170, 120, 0.18), transparent 58%);
+    box-shadow:
+      inset 0 0 0 2px rgba(255, 148, 101, 0.34),
+      inset 0 0 34px rgba(255, 118, 72, 0.14);
   }
 
   .meta-strip {
@@ -1571,6 +1616,7 @@
   .stash-index {
     width: 28px;
     height: 28px;
+    align-self: start;
     border-radius: 999px;
     display: grid;
     place-items: center;
@@ -1798,6 +1844,7 @@
 
   .loaded-crate-feed {
     max-height: none;
+    justify-items: center;
   }
 
   .loaded-stash-card {
@@ -1814,13 +1861,10 @@
 
   .loaded-stash-actions {
     display: inline-flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 10px;
+    align-items: flex-start;
   }
 
   .loaded-indicator {
-    align-self: start;
     display: inline-flex;
     align-items: center;
     gap: 7px;
@@ -1828,8 +1872,8 @@
     border-radius: 999px;
     background:
       linear-gradient(180deg, rgba(86, 236, 225, 0.22), rgba(18, 94, 88, 0.18));
-    border: 1px solid rgba(129, 244, 235, 0.28);
-    color: #0f5d57;
+    border: 1px solid rgb(0 255 235);
+    color: #00ffeb;
     font-family: var(--font-display);
     font-size: 0.72rem;
     letter-spacing: 0.12em;
