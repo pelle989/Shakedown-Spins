@@ -92,7 +92,6 @@
           name: activeState.collection.source.label,
           albumCount: activeState.collection.albums.length,
           createdAt: new Date().toISOString(),
-          stashBadgeKey: '',
           stashPreview: []
         }
       : null
@@ -409,6 +408,7 @@
       };
       saveActiveStashId(payload.stash.id);
       resetPlaybackState();
+      scrollToTopOnMobile();
     } finally {
       loadingStashId = null;
     }
@@ -530,6 +530,16 @@
     }, 1800);
     availableStashesSection?.scrollIntoView({
       block: 'start',
+      behavior: 'smooth'
+    });
+  }
+
+  function scrollToTopOnMobile() {
+    if (typeof window === 'undefined') return;
+    if (!window.matchMedia('(max-width: 860px)').matches) return;
+
+    window.scrollTo({
+      top: 0,
       behavior: 'smooth'
     });
   }
