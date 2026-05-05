@@ -35,7 +35,6 @@ export type StashSummary = {
   name: string;
   albumCount: number;
   createdAt: string;
-  stashBadgeKey: string;
   stashPreview: StashPreviewAlbum[];
 };
 
