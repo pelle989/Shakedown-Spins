@@ -1,7 +1,7 @@
-# Turntable Station Design Guide
+# Shakedown Spins Design Guide
 
 ## Purpose
-This document captures the visual and interaction direction for the `Turntable Station` interface so it can be reused in later implementation phases, redesigns, or AI-assisted UI work.
+This document captures the visual and interaction direction for the `Shakedown Spins` interface so it can be reused in later implementation phases, redesigns, or AI-assisted UI work.
 
 This is not a product spec. It is a design and art-direction guide.
 
