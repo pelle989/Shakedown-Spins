@@ -4,7 +4,31 @@ export type Top10AlbumSource = {
   label: string;
 };
 
-export type AlbumSource = Top10AlbumSource;
+export type PrivateAlbumSource = {
+  kind: 'private';
+  id: string;
+  label: string;
+};
+
+export type SharedAlbumSource = {
+  kind: 'shared';
+  id: string;
+  label: string;
+};
+
+export type SharedOverlapAlbumSource = {
+  kind: 'shared-overlap';
+  id: string;
+  label: string;
+  sharedSourceId: string;
+  mineSourceId: string;
+};
+
+export type AlbumSource =
+  | Top10AlbumSource
+  | PrivateAlbumSource
+  | SharedAlbumSource
+  | SharedOverlapAlbumSource;
 
 export type Album = {
   id: string;
@@ -17,6 +41,8 @@ export type Album = {
   discogsId?: string;
   notes?: string;
   coverImageUrl?: string;
+  country?: string;
+  styles?: string[];
 };
 
 export type AlbumCollection = {
@@ -42,6 +68,120 @@ export type LoadedStash = StashSummary & {
   albums: Album[];
 };
 
+export type PrivateSourceSummary = {
+  id: string;
+  name: string;
+  albumCount: number;
+  createdAt: string;
+  updatedAt: string;
+  lastSyncedAt?: string;
+  kind: string;
+  visibility: 'private' | 'shared';
+  syncStatus: 'ready' | 'syncing' | 'error';
+};
+
+export type LoadedPrivateSource = PrivateSourceSummary & {
+  albums: Album[];
+};
+
+export type SharedOwnerProfile = {
+  publicProfileName: string;
+  displayName: string;
+  handle: string;
+};
+
+export type UserProfileSettings = SharedOwnerProfile & {
+  email: string;
+};
+
+export type UserUiPreferences = {
+  welcomeSeen: boolean;
+  friendLoadModes: Record<string, 'full' | 'matching'>;
+  friendShelfSources: Record<string, string>;
+};
+
+export type SharedSourceSummary = {
+  id: string;
+  name: string;
+  albumCount: number;
+  updatedAt: string;
+  createdAt: string;
+  lastSyncedAt?: string;
+  kind: string;
+  visibility: 'shared';
+  syncStatus: 'ready' | 'syncing' | 'error';
+};
+
+export type LoadedSharedSource = SharedSourceSummary & {
+  owner: SharedOwnerProfile;
+  albums: Album[];
+};
+
+export type FriendStashSummary = SharedSourceSummary & {
+  owner: SharedOwnerProfile;
+};
+
+export type MemberDirectoryEntry = SharedOwnerProfile & {
+  id: string;
+};
+
+export type MemberMessageSourceSummary = {
+  id: string;
+  name: string;
+  owner: SharedOwnerProfile;
+};
+
+export type MemberMessageSummary = {
+  id: string;
+  direction: 'inbox' | 'sent';
+  body?: string;
+  createdAt: string;
+  readAt?: string;
+  sender: SharedOwnerProfile;
+  recipient: SharedOwnerProfile;
+  sharedSource?: MemberMessageSourceSummary | null;
+};
+
+export type SharedOverlapCollection = {
+  id: string;
+  name: string;
+  albumCount: number;
+  mineSourceId: string;
+  mineSourceName: string;
+  sharedSourceId: string;
+  sharedSourceName: string;
+  sharedOwner: SharedOwnerProfile;
+  albums: Album[];
+};
+
+export type DiscogsConnectionSummary = {
+  username: string;
+  connectedAt: string;
+};
+
+export type DiscogsAlbumDetails = {
+  imageUrls: string[];
+  fact: string | null;
+  blurb: string | null;
+  year?: number;
+  label?: string;
+  format?: string;
+  country?: string;
+  styles?: string[];
+};
+
+export type ContextBlurb = {
+  text: string;
+  source: 'Wikipedia' | 'TheAudioDB';
+  sourceUrl: string;
+  truncated: boolean;
+};
+
+export type AlbumContext = {
+  albumSummary: ContextBlurb | null;
+  artistSummary: ContextBlurb | null;
+};
+
 export type UploadPreview = {
   validAlbums: number;
   skippedRows: number;
@@ -57,6 +197,7 @@ export type ParsedAlbumInput = {
   format: string | null;
   discogsId: string | null;
   notes: string | null;
+  coverImageUrl?: string | null;
 };
 
 export type UploadResponse = {
@@ -72,5 +213,14 @@ export type FilterState = {
 
 export type FeedData = {
   stashes: StashSummary[];
+  mySources: PrivateSourceSummary[];
+  friendStashes: FriendStashSummary[];
+  memberMessages: MemberMessageSummary[];
+  unreadMessageCount: number;
+  discogsConnection: DiscogsConnectionSummary | null;
   databaseAvailable: boolean;
+  currentUserProfile?: UserProfileSettings | null;
+  uiPreferences?: UserUiPreferences | null;
+  initialSharedSource?: LoadedSharedSource | null;
+  initialSharedOverlap?: SharedOverlapCollection | null;
 };

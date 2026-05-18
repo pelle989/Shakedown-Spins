@@ -47,7 +47,15 @@ export function databaseAvailable(): boolean {
 export async function listStashes(): Promise<FeedData> {
   const pool = getReadPool();
   if (!pool) {
-    return { stashes: [], databaseAvailable: false };
+    return {
+      stashes: [],
+      mySources: [],
+      friendStashes: [],
+      memberMessages: [],
+      unreadMessageCount: 0,
+      discogsConnection: null,
+      databaseAvailable: false
+    };
   }
 
   try {
@@ -60,6 +68,11 @@ export async function listStashes(): Promise<FeedData> {
 
     return {
       stashes: result.rows.map(mapSummary),
+      mySources: [],
+      friendStashes: [],
+      memberMessages: [],
+      unreadMessageCount: 0,
+      discogsConnection: null,
       databaseAvailable: true
     };
   } catch (error) {
@@ -67,6 +80,11 @@ export async function listStashes(): Promise<FeedData> {
 
     return {
       stashes: [],
+      mySources: [],
+      friendStashes: [],
+      memberMessages: [],
+      unreadMessageCount: 0,
+      discogsConnection: null,
       databaseAvailable: false
     };
   }
