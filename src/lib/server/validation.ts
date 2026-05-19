@@ -1,5 +1,17 @@
 import { fileLooksTooLarge, parseCsv } from '$lib/csv';
 
+const ALLOWED_UPLOAD_FILE_TYPES = new Set([
+  'text/csv',
+  'application/csv',
+  'text/plain',
+  'application/vnd.ms-excel'
+]);
+
+function uploadLooksLikeCsv(file: File) {
+  const name = file.name.trim().toLowerCase();
+  return name.endsWith('.csv') || name.endsWith('.txt');
+}
+
 export function validateStashName(name: string): string {
   const trimmed = name.trim();
   if (!trimmed) throw new Error('Stash name is required.');
@@ -46,6 +58,10 @@ export function validateMessageBody(body: string): string {
 export async function parseUploadFile(file: File) {
   if (fileLooksTooLarge(file.size)) {
     throw new Error('CSV file must be 5 MB or smaller.');
+  }
+
+  if (!ALLOWED_UPLOAD_FILE_TYPES.has(file.type) && !uploadLooksLikeCsv(file)) {
+    throw new Error('Upload a CSV file ending in .csv.');
   }
 
   const text = await file.text();

@@ -1,4 +1,5 @@
 import type { AlbumContext, ContextBlurb } from '$lib/types';
+import { fetchWithTimeout } from '$lib/server/http';
 
 const WIKIPEDIA_API_BASE = 'https://en.wikipedia.org/w/api.php';
 const THEAUDIODB_API_BASE = 'https://www.theaudiodb.com/api/v1/json';
@@ -25,7 +26,7 @@ async function wikipediaSearch(query: string) {
   url.searchParams.set('format', 'json');
   url.searchParams.set('origin', '*');
 
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     headers: { 'User-Agent': USER_AGENT }
   });
 
@@ -52,7 +53,7 @@ async function wikipediaSummary(query: string): Promise<ContextBlurb | null> {
   url.searchParams.set('format', 'json');
   url.searchParams.set('origin', '*');
 
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     headers: { 'User-Agent': USER_AGENT }
   });
 
@@ -84,7 +85,7 @@ async function theAudioDbAlbumSummary(args: {
   url.searchParams.set('s', args.artist);
   url.searchParams.set('a', args.album);
 
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url);
   if (!response.ok) return null;
 
   const payload = (await response.json()) as {
@@ -114,7 +115,7 @@ async function theAudioDbArtistSummary(artist: string): Promise<ContextBlurb | n
   const url = new URL(`${THEAUDIODB_API_BASE}/${THEAUDIODB_API_KEY}/search.php`);
   url.searchParams.set('s', artist);
 
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url);
   if (!response.ok) return null;
 
   const payload = (await response.json()) as {

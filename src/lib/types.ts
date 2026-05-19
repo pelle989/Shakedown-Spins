@@ -154,9 +154,13 @@ export type SharedOverlapCollection = {
   albums: Album[];
 };
 
+export type DiscogsAuthMode = 'personal_token' | 'oauth';
+
 export type DiscogsConnectionSummary = {
   username: string;
   connectedAt: string;
+  authMode: DiscogsAuthMode;
+  discogsUserId?: string;
 };
 
 export type DiscogsAlbumDetails = {
@@ -218,6 +222,7 @@ export type FeedData = {
   memberMessages: MemberMessageSummary[];
   unreadMessageCount: number;
   discogsConnection: DiscogsConnectionSummary | null;
+  discogsOAuthEnabled?: boolean;
   databaseAvailable: boolean;
   currentUserProfile?: UserProfileSettings | null;
   uiPreferences?: UserUiPreferences | null;

@@ -41,6 +41,8 @@ AUTH_URL=http://localhost:5173
 
 RESEND_API_KEY=re_xxxxxxxxx
 AUTH_EMAIL_FROM="Shakedown Spins <auth@yourdomain.com>"
+DISCOGS_CONSUMER_KEY=your-discogs-consumer-key
+DISCOGS_CONSUMER_SECRET=your-discogs-consumer-secret
 
 PHASE5_CLEANUP_TOKEN=replace-with-a-long-random-token
 CRON_SECRET=replace-with-a-long-random-token
@@ -54,6 +56,7 @@ Notes:
 - `AUTH_SECRET` should be a long random value and must be set in production.
 - `RESEND_API_KEY` powers the magic-link email flow.
 - `AUTH_EMAIL_FROM` should use a sender domain verified in Resend.
+- `DISCOGS_CONSUMER_KEY` and `DISCOGS_CONSUMER_SECRET` enable the Discogs OAuth connect flow.
 - `PHASE5_CLEANUP_TOKEN` protects the maintenance cleanup endpoint for manual or external calls.
 - `CRON_SECRET` is the preferred Vercel cron secret because Vercel sends it automatically as a Bearer token.
 
@@ -78,6 +81,8 @@ sql/005_phase2e_shared_source_access.sql
 sql/006_phase2f_member_messages.sql
 sql/007_phase5_cleanup_and_retention.sql
 sql/008_phase5_ui_preferences_and_cleanup_endpoint.sql
+sql/009_phase5_discogs_source_uniqueness.sql
+sql/010_phase6_discogs_auth_modes.sql
 ```
 
 4. Start the app:
