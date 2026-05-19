@@ -12,6 +12,7 @@
     activeSharedOverlapSummary: SharedOverlapCollection | null;
     activeSharedSourceSummary: LoadedSharedSource | null;
     highlightedSourceId: string | null;
+    loadingStashId: string | null;
     deletingFriendSourceId: string | null;
     friendMatchingCountLoadingKey: string | null;
     friendShelfVisible: boolean;
@@ -33,6 +34,7 @@
     activeSharedOverlapSummary,
     activeSharedSourceSummary,
     highlightedSourceId,
+    loadingStashId,
     deletingFriendSourceId,
     friendMatchingCountLoadingKey,
     friendShelfVisible,
@@ -137,6 +139,7 @@
               class="load-button"
               type="button"
               disabled={
+                loadingStashId === friendSource.id ||
                 (getFriendLoadMode(friendSource.id) === 'matching' && !getFriendShelfSourceId(friendSource.id)) ||
                 (activeState.status === 'loaded' &&
                   ((activeState.collection.source.kind === 'shared' &&
@@ -150,7 +153,9 @@
                 void onLoadFriendSource(friendSource);
               }}
             >
-              {#if activeState.status === 'loaded' &&
+              {#if loadingStashId === friendSource.id}
+                Loading...
+              {:else if activeState.status === 'loaded' &&
                 ((activeState.collection.source.kind === 'shared' &&
                   activeState.collection.source.id === friendSource.id &&
                   getFriendLoadMode(friendSource.id) === 'full') ||
@@ -401,7 +406,7 @@
     border-radius: 12px;
     border: 2px solid rgb(253 137 95);
     background: linear-gradient(180deg, #f3e6c9 0%, #e1c895 100%);
-    color: #000000;
+    color: #7f1f1f;
     font-family: "Satoshi", "Avenir Next", "Helvetica Neue", sans-serif;
     font-size: 0.8rem;
     letter-spacing: 0.04em;

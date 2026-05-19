@@ -8,9 +8,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && tsc --noEmit",
-    "lint": "npm run check"
+    "lint": "npm run check",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@sveltejs/adapter-vercel": "^5.5.2",
     "@sveltejs/kit": "^2.17.1",
     "@sveltejs/vite-plugin-svelte": "^5.0.3",

@@ -17,6 +17,7 @@
     sharedSources: PrivateSourceSummary[];
     messageDraft: string;
     sendingMemberMessage: boolean;
+    initialInboxPage?: number;
     formatSourceDateTime: (value?: string | null) => string;
     inboxMessageExpanded: (messageId: string) => boolean;
     onClose: () => void;
@@ -46,6 +47,7 @@
     sharedSources,
     messageDraft,
     sendingMemberMessage,
+    initialInboxPage = 0,
     formatSourceDateTime,
     inboxMessageExpanded,
     onClose,
@@ -59,7 +61,7 @@
     onSubmit
   }: Props = $props();
 
-  let inboxPage = $state(0);
+  let inboxPage = $state(initialInboxPage);
   const inboxPageSize = 4;
   const inboxPageCount = $derived(Math.max(1, Math.ceil(memberMessages.length / inboxPageSize)));
   const visibleMessages = $derived(

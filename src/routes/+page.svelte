@@ -1,8 +1,13 @@
 <script lang="ts">
   import type { Session } from '@auth/core/types';
   import { page } from '$app/state';
+  import AlbumStage from '$lib/components/AlbumStage.svelte';
+  import FiltersPanel from '$lib/components/FiltersPanel.svelte';
   import FriendsStashSection from '$lib/components/FriendsStashSection.svelte';
   import MessagesModal from '$lib/components/MessagesModal.svelte';
+  import MyStashSection from '$lib/components/MyStashSection.svelte';
+  import RecentPicksPanel from '$lib/components/RecentPicksPanel.svelte';
+  import SourcePanel from '$lib/components/SourcePanel.svelte';
   import VinylLoader from '$lib/components/VinylLoader.svelte';
   import { parseCsv } from '$lib/csv';
   import { buildFilterOptions, emptyFilters, filterAlbums } from '$lib/filters';
@@ -30,8 +35,7 @@
     UserUiPreferences
   } from '$lib/types';
   import { goto, invalidate, invalidateAll } from '$app/navigation';
-  import { onDestroy, onMount } from 'svelte';
-  import { fade, fly } from 'svelte/transition';
+  import { onDestroy, onMount, tick } from 'svelte';
 
   let { data }: { data: FeedData & { session?: Session | null; authEnabled?: boolean } } = $props();
 
@@ -96,6 +100,8 @@
   let loginModalOpen = $state(false);
   let welcomeModalOpen = $state(false);
   let expiredLinkModalOpen = $state(false);
+  let aboutModalOpen = $state(false);
+  let sharedLinkArrivalCue = $state<{ kicker: string; message: string } | null>(null);
   let availableStashesSection: HTMLElement | null = null;
   let highlightAvailableStashes = $state(false);
   let availableStashesHighlightTimeout: number | null = null;
@@ -143,6 +149,11 @@
   let copyingShareId = $state<string | null>(null);
   let highlightedSourceId = $state<string | null>(null);
   let highlightedSourceTimeout: number | null = null;
+  let sharedLinkArrivalKey = $state<string | null>(null);
+  let sharedLinkArrivalTimeout: number | null = null;
+  let sharedLinkArrivalInterval: number | null = null;
+  let sharedLinkArrivalSeconds = $state(10);
+  let pendingDirectSharedLinkArrival = $state(Boolean(page.url.searchParams.get('sharedSource')));
   const albumContextCacheVersion = 'theaudiodb-first-v1';
   const stashTimestampFormatter = new Intl.DateTimeFormat('en-US', {
     month: 'short',
@@ -183,14 +194,27 @@
     const key = `${albumContextCacheVersion}::${currentPick.artist}::${currentPick.title}`.toLowerCase();
     return albumContextCache.get(key) ?? null;
   });
+  function summarizeFilterSelection(values: string[], allLabel: string, shortLabel: string) {
+    if (values.length === 0) return allLabel;
+    if (values.length === 1) return values[0];
+    if (values.length === 2) return `${values[0]} / ${values[1]}`;
+    return `${values.length} ${shortLabel}`;
+  }
   const activeFilterTags = $derived([
-    ...filters.genre.map((value) => `Genre: ${value}`),
-    ...filters.decade.map((value) => `Decade: ${value}`)
+    ...filters.genre.map((value) => ({ dial: 'genre' as const, value })),
+    ...filters.decade.map((value) => ({ dial: 'decade' as const, value }))
   ]);
-  const selectedGenreLabel = $derived(filters.genre.length > 0 ? filters.genre.join(' / ') : 'All Genres');
-  const selectedDecadeLabel = $derived(filters.decade.length > 0 ? filters.decade.join(' / ') : 'All Decades');
+  const selectedGenreLabel = $derived(
+    summarizeFilterSelection(filters.genre, 'All Genres', 'Genres')
+  );
+  const selectedDecadeLabel = $derived(
+    summarizeFilterSelection(filters.decade, 'All Decades', 'Decades')
+  );
   const currentFilterDial = $derived(expandedFilterDial ?? 'genre');
   const currentFilterLabel = $derived(currentFilterDial === 'genre' ? 'Genre' : 'Decade');
+  const currentFilterAllLabel = $derived(
+    currentFilterDial === 'genre' ? 'All Genres' : 'All Decades'
+  );
   const expandedFilterOptions = $derived(
     currentFilterDial
       ? filterOptions[currentFilterDial].filter((option) =>
@@ -388,9 +412,14 @@
   $effect(() => {
     const sharedSourceId = page.url.searchParams.get('sharedSource');
 
-    if (!sharedSourceId) return;
+    if (!sharedSourceId) {
+      sharedLinkArrivalKey = null;
+      return;
+    }
 
     if (data.initialSharedOverlap) {
+      const arrivalKey = `matching:${data.initialSharedOverlap.sharedSourceId}:${data.initialSharedOverlap.mineSourceId}`;
+
       if (
         activeState.status !== 'loaded' ||
         activeState.collection.source.kind !== 'shared-overlap' ||
@@ -414,11 +443,22 @@
         resetPlaybackState();
       }
 
+      if (pendingDirectSharedLinkArrival && sharedLinkArrivalKey !== arrivalKey) {
+        showSharedLinkArrivalCue({
+          key: arrivalKey,
+          kicker: 'Shared Link',
+          message: 'Matching albums ready'
+        });
+      }
+
+      pendingDirectSharedLinkArrival = false;
       loadingRestore = false;
       return;
     }
 
     if (data.initialSharedSource) {
+      const arrivalKey = `shared:${data.initialSharedSource.id}`;
+
       if (
         activeState.status !== 'loaded' ||
         activeState.collection.source.kind !== 'shared' ||
@@ -439,6 +479,15 @@
         resetPlaybackState();
       }
 
+      if (pendingDirectSharedLinkArrival && sharedLinkArrivalKey !== arrivalKey) {
+        showSharedLinkArrivalCue({
+          key: arrivalKey,
+          kicker: 'Shared Link',
+          message: `${data.initialSharedSource.name} ready`
+        });
+      }
+
+      pendingDirectSharedLinkArrival = false;
       loadingRestore = false;
     }
   });
@@ -450,6 +499,31 @@
     if (!data.session?.user) {
       uploadDestination = 'public';
       sourceTab = 'csv';
+    }
+  });
+
+  $effect(() => {
+    const nextGenre = filters.genre.filter((value) => filterOptions.genre.includes(value));
+    const nextDecade = filters.decade.filter((value) => filterOptions.decade.includes(value));
+
+    if (
+      nextGenre.length !== filters.genre.length ||
+      nextDecade.length !== filters.decade.length
+    ) {
+      filters = {
+        ...filters,
+        genre: nextGenre,
+        decade: nextDecade
+      };
+    }
+  });
+
+  $effect(() => {
+    if (filterDialPage[currentFilterDial] > expandedFilterPageCount - 1) {
+      filterDialPage = {
+        ...filterDialPage,
+        [currentFilterDial]: Math.max(0, expandedFilterPageCount - 1)
+      };
     }
   });
 
@@ -910,6 +984,12 @@
     }
     if (memberSearchTimeout) {
       window.clearTimeout(memberSearchTimeout);
+    }
+    if (sharedLinkArrivalTimeout) {
+      window.clearTimeout(sharedLinkArrivalTimeout);
+    }
+    if (sharedLinkArrivalInterval) {
+      window.clearInterval(sharedLinkArrivalInterval);
     }
   });
 
@@ -1482,6 +1562,50 @@
     }, 1800);
   }
 
+  function showSharedLinkArrivalCue({
+    key,
+    kicker,
+    message
+  }: {
+    key: string;
+    kicker: string;
+    message: string;
+  }) {
+    sharedLinkArrivalKey = key;
+    sharedLinkArrivalCue = { kicker, message };
+    sharedLinkArrivalSeconds = 10;
+
+    if (sharedLinkArrivalTimeout) {
+      window.clearTimeout(sharedLinkArrivalTimeout);
+    }
+    if (sharedLinkArrivalInterval) {
+      window.clearInterval(sharedLinkArrivalInterval);
+    }
+
+    sharedLinkArrivalInterval = window.setInterval(() => {
+      sharedLinkArrivalSeconds = Math.max(0, sharedLinkArrivalSeconds - 1);
+    }, 1000);
+
+    sharedLinkArrivalTimeout = window.setTimeout(() => {
+      dismissSharedLinkArrivalCue();
+    }, 10000);
+  }
+
+  function dismissSharedLinkArrivalCue() {
+    sharedLinkArrivalCue = null;
+    sharedLinkArrivalSeconds = 10;
+
+    if (sharedLinkArrivalTimeout) {
+      window.clearTimeout(sharedLinkArrivalTimeout);
+      sharedLinkArrivalTimeout = null;
+    }
+
+    if (sharedLinkArrivalInterval) {
+      window.clearInterval(sharedLinkArrivalInterval);
+      sharedLinkArrivalInterval = null;
+    }
+  }
+
   async function saveDiscogsPersonalToken(event: SubmitEvent) {
     event.preventDefault();
     uploadError = null;
@@ -1537,6 +1661,11 @@
 
     const text = await selectedFile.text();
     preview = parseCsv(text);
+  }
+
+  function handleStashNameInput(event: Event) {
+    stashName = (event.currentTarget as HTMLInputElement).value;
+    stashNameError = null;
   }
 
   async function submitUpload(event: SubmitEvent) {
@@ -2006,20 +2135,27 @@
   }
 
   async function loadFriendSource(source: FriendStashSummary) {
-    if (getFriendLoadMode(source.id) === 'matching') {
-      const mineSourceId = getFriendShelfSourceId(source.id);
-      if (!mineSourceId) return;
+    loadingStashId = source.id;
+    await tick();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    try {
+      if (getFriendLoadMode(source.id) === 'matching') {
+        const mineSourceId = getFriendShelfSourceId(source.id);
+        if (!mineSourceId) return;
 
-      stashView = 'friends';
-      await goto(`/?sharedSource=${source.id}&mineSource=${mineSourceId}`, {
-        invalidateAll: true,
-        keepFocus: true,
-        noScroll: true
-      });
-      return;
+        stashView = 'friends';
+        await goto(`/?sharedSource=${source.id}&mineSource=${mineSourceId}`, {
+          invalidateAll: true,
+          keepFocus: true,
+          noScroll: true
+        });
+        return;
+      }
+
+      await viewFriendSharedCollection(source.id);
+    } finally {
+      loadingStashId = null;
     }
-
-    await viewFriendSharedCollection(source.id);
   }
 
   async function sendShareLink(sourceId: string) {
@@ -2284,7 +2420,21 @@
     filters = emptyFilters();
   }
 
+  function clearDialFilters(dial: 'genre' | 'decade') {
+    filters = { ...filters, [dial]: [] };
+    filterSearch = { ...filterSearch, [dial]: '' };
+    filterDialPage = { ...filterDialPage, [dial]: 0 };
+  }
+
+  function removeFilterValue(dial: 'genre' | 'decade', value: string) {
+    filters = {
+      ...filters,
+      [dial]: filters[dial].filter((entry) => entry !== value)
+    };
+  }
+
   function toggleFilterDial(dial: 'genre' | 'decade') {
+    if (filterOptions[dial].length === 0) return;
     filterDialPage = { ...filterDialPage, [dial]: 0 };
     filterSearch = { ...filterSearch, [dial]: '' };
     expandedFilterDial = expandedFilterDial === dial ? null : dial;
@@ -2349,164 +2499,45 @@
   <main class="shell">
     <section class="grid">
       <section class="panel player-panel turntable-panel">
-        <article class="album-card">
-          <div class="album-display">
-            <div class:is-rolling={rollingSelection} class="album-stage">
-              <div
-                class:art-slot-text={albumStageView === 'text'}
-                class:has-art={Boolean(activeArtworkUrl) && !artLoading && albumStageView === 'art'}
-                class="art-slot"
-                ontouchstart={handleArtworkTouchStart}
-                ontouchend={handleArtworkTouchEnd}
-              >
-                {#if albumStageView === 'text' && activeState.status !== 'idle'}
-                  <div class="album-slot-text-view">
-                    {#if albumContextLoading}
-                      <p class="album-slot-status">Loading pop-up facts…</p>
-                    {:else if currentAlbumDetail}
-                      <div class="album-slot-facts">
-                        {#if currentAlbumDetail.albumSummary}
-                          <div class="album-slot-fact-block">
-                            <span class="album-slot-fact-kicker">Album • {currentAlbumDetail.albumSummary.source}</span>
-                            <p class="album-slot-fact-text">
-                              {currentAlbumDetail.albumSummary.text}
-                              {#if currentAlbumDetail.albumSummary.truncated}
-                                <a
-                                  class="album-slot-fact-link"
-                                  href={currentAlbumDetail.albumSummary.sourceUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                >
-                                  Continue…
-                                </a>
-                              {/if}
-                            </p>
-                          </div>
-                        {/if}
-                        {#if currentAlbumDetail.artistSummary}
-                          <div class="album-slot-fact-block">
-                            <span class="album-slot-fact-kicker">Artist • {currentAlbumDetail.artistSummary.source}</span>
-                            <p class="album-slot-fact-text">
-                              {currentAlbumDetail.artistSummary.text}
-                              {#if currentAlbumDetail.artistSummary.truncated}
-                                <a
-                                  class="album-slot-fact-link"
-                                  href={currentAlbumDetail.artistSummary.sourceUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                >
-                                  Continue…
-                                </a>
-                              {/if}
-                            </p>
-                          </div>
-                        {/if}
-                      </div>
-                    {:else}
-                      <p class="album-slot-status">No pop-up facts available for this album yet.</p>
-                    {/if}
-                  </div>
-                {:else if artLoading}
-                  <VinylLoader size={340} active={true} />
-                {:else if activeArtworkUrl}
-                  <img
-                    class="art-backdrop"
-                    src={activeArtworkUrl}
-                    alt=""
-                    aria-hidden="true"
-                  />
-                  <img
-                    class="cover-art"
-                    src={activeArtworkUrl}
-                    alt={`Cover art for ${currentPick?.title ?? 'the selected album'}`}
-                  />
-                {:else}
-                  <VinylLoader size={340} />
-                {/if}
-              </div>
-              {#if albumStageView === 'art' && activeArtworkUrls.length > 1}
-                <div class="art-gallery-controls">
-                  <button class="art-gallery-button" type="button" aria-label="Previous album image" onclick={previousArtwork}>
-                    ‹
-                  </button>
-                  <span class="art-gallery-count">{currentArtworkIndex + 1} / {activeArtworkUrls.length}</span>
-                  <button class="art-gallery-button" type="button" aria-label="Next album image" onclick={nextArtwork}>
-                    ›
-                  </button>
-                </div>
-              {/if}
-              {#if activeState.status !== 'idle'}
-                <button
-                  class:album-stage-year-text-active={albumStageView === 'text'}
-                  class="album-stage-year"
-                  type="button"
-                  aria-pressed={albumStageView === 'text'}
-                  onclick={toggleAlbumStageView}
-                >
-                  {currentPick?.year ?? '—'}
-                </button>
-              {/if}
+        {#if sharedLinkArrivalCue}
+          <div
+            class:shared-link-arrival-fading={sharedLinkArrivalSeconds <= 1}
+            class="shared-link-arrival"
+            data-testid="shared-link-arrival"
+            role="status"
+            aria-live="polite"
+          >
+            <span class="shared-link-arrival-kicker">{sharedLinkArrivalCue.kicker}</span>
+            <div class="shared-link-arrival-main">
+              <strong>{sharedLinkArrivalCue.message}</strong>
             </div>
+            <span class="shared-link-arrival-countdown">{sharedLinkArrivalSeconds}s</span>
+            <button class="shared-link-arrival-close" type="button" onclick={dismissSharedLinkArrivalCue}>
+              Close
+            </button>
           </div>
-
-          <div class="album-copy lcd-copy">
-            <div class="lcd-main">
-              {#if currentPick}
-                {#key currentPick.id}
-                  <div class:loading-placeholder={artLoading} class="pick-reveal">
-                    <div class="readout-row" in:fade={{ duration: 220 }}>
-                      <span class="readout-label">Album</span>
-                      <h3 in:fly={{ y: 12, duration: 320 }}>
-                        {displayedTitle || currentPick.title}
-                      </h3>
-                    </div>
-                    <div class="readout-row" in:fade={{ duration: 260, delay: 60 }}>
-                      <span class="readout-label">Artist</span>
-                      <p class="artist" in:fly={{ y: 16, duration: 380, delay: 70 }}>
-                        {displayedArtist || currentPick.artist}
-                      </p>
-                    </div>
-                  </div>
-                {/key}
-              {:else if activeState.status === 'idle'}
-                <div class="pick-reveal">
-                  <button class="jump-to-stashes" type="button" onclick={scrollToAvailableStashes}>
-                    <span class="jump-to-stashes-copy">
-                      <span class="jump-to-stashes-label">Load A Stash</span>
-                    </span>
-                    <span class="jump-to-stashes-chevron" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" focusable="false">
-                        <path
-                          d="M6.75 9.25 12 14.5l5.25-5.25"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2.2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        />
-                      </svg>
-                    </span>
-                  </button>
-                </div>
-              {:else}
-                <div class="pick-reveal">
-                  <div class="readout-row">
-                    <span class="readout-label">Album</span>
-                    <h3>Nothing selected yet</h3>
-                  </div>
-                  <div class="readout-row">
-                    <span class="readout-label">Artist</span>
-                    <p class="artist">Press Random or hit Space to reveal the next album.</p>
-                  </div>
-                </div>
-              {/if}
-            </div>
-
-            {#if restoringMessage}
-              <p class="status-note">{restoringMessage}</p>
-            {/if}
-          </div>
-        </article>
+        {/if}
+        <AlbumStage
+          {activeState}
+          {albumStageView}
+          {activeArtworkUrl}
+          {activeArtworkUrls}
+          {artLoading}
+          {rollingSelection}
+          {currentPick}
+          {currentArtworkIndex}
+          {currentAlbumDetail}
+          {albumContextLoading}
+          {displayedTitle}
+          {displayedArtist}
+          {restoringMessage}
+          onToggleAlbumStageView={toggleAlbumStageView}
+          onPreviousArtwork={previousArtwork}
+          onNextArtwork={nextArtwork}
+          onScrollToAvailableStashes={scrollToAvailableStashes}
+          onHandleArtworkTouchStart={handleArtworkTouchStart}
+          onHandleArtworkTouchEnd={handleArtworkTouchEnd}
+        />
       </section>
 
       <div class="queue-column">
@@ -2525,185 +2556,39 @@
           </span>
         </button>
 
-        <aside class="panel queue-panel">
-          {#if !databaseAvailable}
-            <p class="status-error">
-              Database connection is not configured yet. Set `DATABASE_URL` and `DATABASE_URL_UNPOOLED`
-              to enable the public stash feed.
-            </p>
-          {/if}
-
-          <section class="history queue-section">
-            <div class="queue-section-header">
-              <h3>Recent Picks</h3>
-            </div>
-            {#if recentHistory.length === 0}
-              <div class="history-list history-list-skeleton" aria-hidden="true">
-                {#each Array.from({ length: 5 }) as _, index}
-                  <div class="history-item history-item-skeleton">
-                    <div class="history-index skeleton-index">{index + 1}</div>
-                    <div class="history-art history-art-skeleton"></div>
-                    <div class="history-copy history-copy-skeleton">
-                      <span class="skeleton-line skeleton-line-title"></span>
-                      <span class="skeleton-line skeleton-line-artist"></span>
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            {:else}
-              <div class="history-list">
-                {#each recentHistory.slice(1, 6) as album, index}
-                  <div class="history-item">
-                    <div class="history-index">{index + 1}</div>
-                    <div class="history-art">
-                      {#if album.coverImageUrl}
-                        <img src={album.coverImageUrl} alt={`Cover art for ${album.title}`} />
-                      {:else}
-                        <VinylLoader size={48} animated={false} />
-                      {/if}
-                    </div>
-                    <div class="history-copy">
-                      <strong>{album.title}</strong>
-                      <span>{album.artist}</span>
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            {/if}
-          </section>
-        </aside>
+        <RecentPicksPanel {databaseAvailable} {recentHistory} />
       </div>
     </section>
 
     <section class="bottom-strip panel">
-      <section class="bottom-panel filter-panel">
-        <div class="selector-bank">
-          <div class="selector-bank-head">
-            <div>
-              <h3>Filters</h3>
-            </div>
-          </div>
-          {#if activeState.status !== 'loaded'}
-            <div class="selector-grid selector-grid-idle selector-grid-faded">
-              <div class="selector-unit selector-unit-idle">
-                <span class="selector-label">Genre</span>
-                <span class="selector-knob selector-knob-genre" aria-hidden="true"></span>
-                <span class="selector-value">All Genres</span>
-              </div>
-              <div class="selector-unit selector-unit-idle">
-                <span class="selector-label">Decade</span>
-                <span class="selector-knob selector-knob-decade" aria-hidden="true"></span>
-                <span class="selector-value">All Decades</span>
-              </div>
-            </div>
-          {:else if !expandedFilterDial}
-            <div class="selector-grid selector-grid-idle">
-              <button class="selector-unit" type="button" onclick={() => toggleFilterDial('genre')}>
-                <span class="selector-label">Genre</span>
-                <span class="selector-knob selector-knob-genre" aria-hidden="true"></span>
-                <span class="selector-value">{selectedGenreLabel}</span>
-              </button>
-              <button class="selector-unit" type="button" onclick={() => toggleFilterDial('decade')}>
-                <span class="selector-label">Decade</span>
-                <span class="selector-knob selector-knob-decade" aria-hidden="true"></span>
-                <span class="selector-value">{selectedDecadeLabel}</span>
-              </button>
-            </div>
-
-            {#if activeFilterTags.length > 0}
-              <div class="active-filter-tags">
-                {#each activeFilterTags as tag}
-                  <span class="active-filter-chip">{tag}</span>
-                {/each}
-              </div>
-            {/if}
-
-            {#if activeFilterTags.length > 0}
-              <div class="filter-actions">
-                <button class="text-button" type="button" onclick={clearFilters}>Clear Filters</button>
-              </div>
-            {/if}
-          {:else}
-            <div
-              class="compact-filter-group rotary-expanded-group"
-              ontouchstart={handleFilterTouchStart}
-              ontouchend={handleFilterTouchEnd}
-            >
-              <div class="rotary-expanded-head">
-                <h4>{currentFilterLabel}</h4>
-                <button class="text-button rotary-nav" type="button" onclick={() => (expandedFilterDial = null)}>
-                  Back
-                </button>
-              </div>
-
-              <div class="filter-search-row">
-                <input
-                  class="filter-search-input"
-                  type="search"
-                  placeholder={`Search ${currentFilterLabel.toLowerCase()}`}
-                  value={filterSearch[currentFilterDial]}
-                  oninput={(event) =>
-                    updateFilterSearch(
-                      currentFilterDial,
-                      (event.currentTarget as HTMLInputElement).value
-                    )}
-                />
-              </div>
-
-              {#if expandedFilterOptions.length === 0}
-                <p class="status-note filter-empty-state">No {currentFilterLabel.toLowerCase()} matches that search.</p>
-              {:else}
-                <div class="rotary-option-viewport">
-                  {#key `${currentFilterDial}:${filterDialPage[currentFilterDial]}`}
-                    <div
-                      class="rotary-option-grid"
-                      in:fly={{ x: filterPageDirection > 0 ? 26 : -26, y: 0, duration: 180 }}
-                    >
-                      {#each expandedFilterPageOptions as option, index}
-                        <button
-                          class:rotary-option-active={filters[currentFilterDial].includes(option)}
-                          class="rotary-option"
-                          style={`--option-angle: ${((index % 4) - 1.5) * 16}deg;`}
-                          type="button"
-                          onclick={() => toggleFilter(currentFilterDial, option)}
-                        >
-                          <span class="rotary-option-knob" aria-hidden="true"></span>
-                          <span class="rotary-option-label">{option}</span>
-                        </button>
-                      {/each}
-                    </div>
-                  {/key}
-                </div>
-              {/if}
-
-              {#if expandedFilterPageCount > 1}
-                <div class="rotary-pagination">
-                  <button
-                    class="text-button rotary-nav"
-                    type="button"
-                    onclick={() => changeExpandedFilterPage(-1)}
-                    disabled={filterDialPage[currentFilterDial] === 0}
-                  >
-                    ←
-                  </button>
-                  <span class="rotary-page-indicator">
-                    {filterDialPage[currentFilterDial] + 1}/{expandedFilterPageCount}
-                  </span>
-                  <button
-                    class="text-button rotary-nav"
-                    type="button"
-                    onclick={() => changeExpandedFilterPage(1)}
-                    disabled={filterDialPage[currentFilterDial] >= expandedFilterPageCount - 1}
-                  >
-                    →
-                  </button>
-                </div>
-              {/if}
-
-            </div>
-          {/if}
-        </div>
-      </section>
+      <FiltersPanel
+        {activeState}
+        {filters}
+        filterOptions={{ genre: filterOptions.genre, decade: filterOptions.decade }}
+        {expandedFilterDial}
+        {currentFilterDial}
+        {currentFilterLabel}
+        {currentFilterAllLabel}
+        {expandedFilterOptions}
+        {expandedFilterPageOptions}
+        {expandedFilterPageCount}
+        {filterDialPage}
+        {filterPageDirection}
+        {filterSearch}
+        {selectedGenreLabel}
+        {selectedDecadeLabel}
+        {activeFilterTags}
+        onToggleFilterDial={toggleFilterDial}
+        onRemoveFilterValue={removeFilterValue}
+        onClearFilters={clearFilters}
+        onHandleFilterTouchStart={handleFilterTouchStart}
+        onHandleFilterTouchEnd={handleFilterTouchEnd}
+        onClearDialFilters={clearDialFilters}
+        onCollapseDial={() => (expandedFilterDial = null)}
+        onUpdateFilterSearch={updateFilterSearch}
+        onToggleFilter={toggleFilter}
+        onChangeExpandedFilterPage={changeExpandedFilterPage}
+      />
 
       <section
         bind:this={availableStashesSection}
@@ -2787,94 +2672,27 @@
         </div>
 
         {#if stashView === 'mine'}
-          <div class="crate-feed my-stash-feed">
-            {#if sourceManageError}
-              <p class="status-error">{sourceManageError}</p>
-            {/if}
-            {#if sourceManageSuccess}
-              <p class="status-success">{sourceManageSuccess}</p>
-            {/if}
-            {#if activeState.status === 'loaded' && activePrivateSourceSummary}
-              <article
-                class:stash-card-highlighted={highlightedSourceId === activePrivateSourceSummary.id}
-                class="stash-card record-card loaded-stash-card"
-              >
-                <div class="stash-card-top">
-                  <div class="stash-card-heading">
-                    <div>
-                      <div class="loaded-card-title-row">
-                        <h3>{activePrivateSourceSummary.name}</h3>
-                        <span class="loaded-indicator">Private</span>
-                      </div>
-                      <p>{activePrivateSourceSummary.albumCount} albums saved in My Stash</p>
-                    </div>
-                  </div>
-                  <div class="loaded-stash-actions">
-                    <button class="text-button stash-edit-button" type="button" onclick={() => startEditingSource(activePrivateSourceSummary)}>
-                      Edit
-                    </button>
-                    <button class="load-button clear-stash-button" type="button" onclick={unloadStash}>Clear</button>
-                  </div>
-                </div>
-              </article>
-            {:else if mySources.length === 0}
-              <div class="empty-state my-stash-state">
-                <h3>My Stash</h3>
-                <p>Your private collections will appear here.</p>
-              </div>
-            {:else}
-              {#each mySources as source, index}
-                <article
-                  class:stash-card-highlighted={highlightedSourceId === source.id}
-                  class="stash-card record-card"
-                >
-                  <div class="stash-card-top">
-                    <div class="stash-card-heading">
-                      <span class="stash-index">{index + 1}</span>
-                      <div>
-                        <div class="stash-source-title-row">
-                          <h3>{source.name}</h3>
-                          <span class="stash-kind-badge">{source.kind}</span>
-                          {#if source.visibility === 'shared'}
-                            <span class="stash-kind-badge stash-share-badge">shared</span>
-                          {/if}
-                        </div>
-                        <p>
-                          {source.albumCount} albums · Updated {formatSourceTimestamp(source.updatedAt)}
-                          {#if source.kind === 'discogs'}
-                            · Imported {formatSourceDateTime(source.lastSyncedAt)}
-                          {/if}
-                        </p>
-                      </div>
-                    </div>
-                    <div class="stash-actions-group">
-                      <button
-                        class="load-button"
-                        type="button"
-                        disabled={loadingStashId === source.id}
-                        onclick={() => loadPrivateSource(source.id)}
-                      >
-                        {loadingStashId === source.id ? 'Loading...' : 'Load'}
-                      </button>
-                      <button
-                        class="text-button stash-edit-button"
-                        type="button"
-                        onclick={() => startEditingSource(source)}
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              {/each}
-            {/if}
-          </div>
+          <MyStashSection
+            {activeState}
+            {activePrivateSourceSummary}
+            {mySources}
+            {highlightedSourceId}
+            {loadingStashId}
+            {sourceManageError}
+            {sourceManageSuccess}
+            {formatSourceTimestamp}
+            {formatSourceDateTime}
+            onStartEditingSource={startEditingSource}
+            onLoadPrivateSource={loadPrivateSource}
+            onUnloadStash={unloadStash}
+          />
         {:else if stashView === 'friends'}
           <FriendsStashSection
             {activeState}
             {activeSharedOverlapSummary}
             {activeSharedSourceSummary}
             {highlightedSourceId}
+            {loadingStashId}
             {deletingFriendSourceId}
             {friendMatchingCountLoadingKey}
             {friendShelfVisible}
@@ -2941,191 +2759,54 @@
         {/if}
       </section>
 
-      <section class="bottom-panel source-panel">
-        <div class="queue-section-header">
-          <h3>Source</h3>
-        </div>
-
-        <div class="source-panel-body">
-          <div class="source-tab-strip" role="tablist" aria-label="Source types">
-            <button
-              class:source-tab-active={sourceTab === 'csv'}
-              class="source-tab"
-              type="button"
-              role="tab"
-              aria-selected={sourceTab === 'csv'}
-              onclick={() => (sourceTab = 'csv')}
-            >
-              CSV
-            </button>
-            <button
-              class:source-tab-active={sourceTab === 'discogs'}
-              class:source-tab-disabled={!data.session?.user}
-              class="source-tab"
-              type="button"
-              role="tab"
-              aria-selected={sourceTab === 'discogs'}
-              aria-disabled={!data.session?.user}
-              onclick={() => {
-                if (data.session?.user) sourceTab = 'discogs';
-                else loginModalOpen = true;
-              }}
-            >
-              <span>Discogs</span>
-              {#if !data.session?.user}
-                <span class="stash-tab-badge">Sign in</span>
-              {/if}
-            </button>
-          </div>
-
-          {#if sourceTab === 'csv'}
-            <form
-              onsubmit={submitUpload}
-              class="upload-form compact-upload"
-            >
-              {#if replacingCsvSourceId}
-                <div class:source-replace-banner-active={highlightSourceReplaceBanner} class="source-replace-banner">
-                  <div>
-                    <strong>Replacing existing CSV stash</strong>
-                    <p>The stash identity, sharing, and friend links stay the same. The album list will be replaced.</p>
-                  </div>
-                  <button class="text-button" type="button" onclick={cancelReplacingCsvSource}>
-                    Cancel
-                  </button>
-                </div>
-              {/if}
-              <label class:field-error={!!stashNameError}>
-                <span>Stash Name <span class="required-indicator" aria-hidden="true">*</span></span>
-                <input
-                  bind:value={stashName}
-                  class:input-error={!!stashNameError}
-                  maxlength="100"
-                  placeholder="Collection Name"
-                  oninput={() => (stashNameError = null)}
-                />
-                {#if stashNameError}
-                  <p class="field-error-text">{stashNameError}</p>
-                {/if}
-              </label>
-
-              <label>
-                <span>CSV File</span>
-                <input id="stash-file" type="file" accept=".csv,text/csv" onchange={handleFileChange} />
-              </label>
-
-              {#if data.session?.user}
-                <div class="upload-destination-toggle" role="radiogroup" aria-label="Upload destination">
-                  <button
-                    class:upload-destination-active={uploadDestination === 'private'}
-                    class="upload-destination-button"
-                    type="button"
-                    role="radio"
-                    aria-checked={uploadDestination === 'private'}
-                    onclick={() => (uploadDestination = 'private')}
-                  >
-                    Private
-                  </button>
-                  <button
-                    class:upload-destination-active={uploadDestination === 'public'}
-                    class="upload-destination-button"
-                    type="button"
-                    role="radio"
-                    aria-checked={uploadDestination === 'public'}
-                    onclick={() => (uploadDestination = 'public')}
-                  >
-                    Public
-                  </button>
-                </div>
-              {/if}
-
-              <div class="source-status">
-                {#if preview}
-                  <p class="status-note">
-                    Found {preview.validAlbums} valid albums, {preview.skippedRows} rows skipped.
-                  </p>
-                {/if}
-
-                {#if uploadError}
-                  <p class="status-error">{uploadError}</p>
-                {/if}
-
-                {#if csvSuccessMessage}
-                  <p class="status-success">{csvSuccessMessage}</p>
-                {/if}
-              </div>
-
-              <div class="source-actions">
-                <button class="load-button upload-button" type="submit" disabled={pendingUpload || !preview || preview.validAlbums === 0}>
-                  {#if pendingUpload}
-                    Uploading...
-                  {:else if replacingCsvSourceId}
-                    Replace Stash
-                  {:else if data.session?.user && uploadDestination === 'private'}
-                    Upload Stash
-                  {:else if data.session?.user && uploadDestination === 'public'}
-                    Add to Street Feed
-                  {:else}
-                    Upload Stash
-                  {/if}
-                </button>
-                {#if pendingUpload}
-                  <div class="pending-inline">
-                    <VinylLoader size={30} active={true} />
-                  </div>
-                {/if}
-              </div>
-            </form>
-          {:else}
-            <div class="discogs-module source-discogs-module">
-              <div class="discogs-copy">
-                <span class="auth-kicker">Discogs</span>
-                {#if discogsConnection}
-                  <strong>Connected as {discogsConnection.username}</strong>
-                  <p>Last imported: {formatSourceDateTime(discogsSourceSummary?.lastSyncedAt)}</p>
-                {:else}
-                  <strong>Discogs not connected</strong>
-                  <p>Paste a personal Discogs token to connect your private collection.</p>
-                {/if}
-                {#if discogsStatusMessage}
-                  <p class="auth-error-note">{discogsStatusMessage}</p>
-                {/if}
-                {#if uploadError}
-                  <p class="status-error">{uploadError}</p>
-                {/if}
-                {#if discogsSuccessMessage}
-                  <p class="status-success">{discogsSuccessMessage}</p>
-                {/if}
-              </div>
-            <div class="discogs-actions source-discogs-actions">
-              {#if discogsConnection}
-                <button class="load-button" type="button" disabled={importingDiscogs} onclick={importFromDiscogs}>
-                  {importingDiscogs
-                    ? 'Refreshing...'
-                    : discogsSourceSummary
-                      ? 'Manual Refresh'
-                      : 'Import Discogs'}
-                </button>
-                <button
-                  class="load-button clear-stash-button"
-                  type="button"
-                  onclick={() => (resetDiscogsWarningOpen = true)}
-                >
-                  Reset Discogs Key
-                </button>
-              {:else}
-                <button class="load-button discogs-connect-button" type="button" onclick={() => (discogsTokenModalOpen = true)}>
-                  Connect Discogs
-                </button>
-              {/if}
-            </div>
-          </div>
-        {/if}
-        </div>
-      </section>
+      <SourcePanel
+        signedIn={Boolean(data.session?.user)}
+        {sourceTab}
+        {replacingCsvSourceId}
+        {highlightSourceReplaceBanner}
+        {stashName}
+        {stashNameError}
+        {preview}
+        {uploadError}
+        {csvSuccessMessage}
+        {pendingUpload}
+        {uploadDestination}
+        {discogsConnection}
+        {discogsSourceSummary}
+        {discogsStatusMessage}
+        {discogsSuccessMessage}
+        {importingDiscogs}
+        {formatSourceDateTime}
+        onSetSourceTab={(tab) => (sourceTab = tab)}
+        onOpenLoginModal={() => (loginModalOpen = true)}
+        onSubmitUpload={submitUpload}
+        onCancelReplacingCsvSource={cancelReplacingCsvSource}
+        onStashNameInput={handleStashNameInput}
+        onHandleFileChange={handleFileChange}
+        onSetUploadDestination={(destination) => (uploadDestination = destination)}
+        onImportFromDiscogs={importFromDiscogs}
+        onOpenResetDiscogsWarning={() => (resetDiscogsWarningOpen = true)}
+        onOpenDiscogsTokenModal={() => (discogsTokenModalOpen = true)}
+      />
     </section>
 
-    {#if data.session?.user}
       <div class="bottom-strip-footer">
+        <button
+          class="text-button source-info-button"
+          type="button"
+          aria-label="About Shakedown Spins"
+          title="About Shakedown Spins"
+          onclick={() => (aboutModalOpen = true)}
+        >
+          <span class="info-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8" />
+              <circle cx="12" cy="8" r="1.1" fill="currentColor" />
+              <path d="M12 11v5.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+          </span>
+        </button>
+        {#if data.session?.user}
         <p class="footer-session-note">Signed in as {data.session.user.email}</p>
         <button
           class="text-button source-inbox-button"
@@ -3152,8 +2833,8 @@
         <form method="POST" action="/signout" class="source-signout-form">
           <button class="text-button source-signout-button" type="submit">Sign Out</button>
         </form>
+        {/if}
       </div>
-    {/if}
   </main>
 </div>
 
@@ -3195,6 +2876,42 @@
   }}
   onSubmit={sendInternalShareMessage}
 />
+
+{#if aboutModalOpen}
+  <div class="modal-backdrop" onclick={() => (aboutModalOpen = false)}>
+    <div
+      class="auth-modal about-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="about-modal-title"
+      onclick={(event) => event.stopPropagation()}
+    >
+      <div class="auth-modal-head">
+        <h3 id="about-modal-title">About Shakedown Spins</h3>
+        <button class="text-button" type="button" onclick={() => (aboutModalOpen = false)}>
+          Close
+        </button>
+      </div>
+      <div class="auth-sign-in auth-form about-form">
+        <div class="about-brand-mark" aria-hidden="true">
+          <img src="/shakedown-spins.png" alt="" />
+        </div>
+        <p class="profile-note">
+          A private vinyl collection and shared listening collections for randomizing, rolling, filtering, and swapping stashes with friends.
+        </p>
+        <div class="about-copy-block">
+          <strong>Sources</strong>
+          <p>Album notes and fact snippets may reference third-party sources including Wikipedia, TheAudioDB, and Discogs import data.</p>
+        </div>
+        <div class="about-copy-block">
+          <strong>Contact</strong>
+          <p><a href="https://joekirchner.com/#contact" target="_blank" rel="noreferrer">joekirchner.com/#contact</a></p>
+        </div>
+        <p class="status-note about-legal-note">© 2026 Joe Kirchner. All rights reserved.</p>
+      </div>
+    </div>
+  </div>
+{/if}
 
 {#if profileModalOpen}
   <div class="modal-backdrop" onclick={closeProfileModal}>
@@ -3276,7 +2993,7 @@
       onclick={(event) => event.stopPropagation()}
     >
       <div class="auth-modal-head">
-        <h3 id="source-edit-modal-title">Edit Stash</h3>
+        <h3 id="source-edit-modal-title">Stash Settings</h3>
         <button class="text-button" type="button" onclick={cancelEditingSource}>
           Close
         </button>
@@ -3860,10 +3577,12 @@
 
   .queue-section-header h3,
   .selector-bank-head h3 {
-    font-size: 1.02rem;
-    letter-spacing: 0.12em;
+    font-family: var(--font-display);
+    font-size: 0.92rem;
+    letter-spacing: 0.16em;
+    line-height: 1;
     text-transform: uppercase;
-    color: #f0d7a2;
+    color: #f5deb0;
   }
 
   .album-card {
@@ -5225,6 +4944,32 @@
     border-radius: 999px;
   }
 
+  .source-info-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 999px;
+    font-family: var(--font-display);
+  }
+
+  .info-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    color: #3a210f;
+  }
+
+  .info-icon svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
   .message-icon {
     position: relative;
     display: inline-flex;
@@ -5261,11 +5006,140 @@
     margin-top: 12px;
   }
 
+  .shared-link-arrival {
+    position: absolute;
+    top: 68px;
+    left: 50%;
+    z-index: 4;
+    display: inline-grid;
+    justify-items: center;
+    gap: 6px;
+    width: min(calc(100% - 56px), 380px);
+    transform: translateX(-50%);
+    padding: 12px 16px 13px;
+    border-radius: 18px;
+    background:
+      radial-gradient(circle at 50% 22%, rgba(255, 171, 120, 0.52) 0%, rgba(255, 143, 99, 0.28) 22%, transparent 58%),
+      linear-gradient(180deg, rgba(255, 231, 193, 0.16), rgba(122, 24, 18, 0.12)),
+      radial-gradient(circle at 50% 22%, #ff8f63 0%, #e5533a 26%, #cf2f2f 56%, #9b1a1f 100%);
+    border: 1px solid rgba(78, 47, 28, 0.72);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 234, 195, 0.18),
+      0 0 0 1px rgba(214, 189, 145, 0.14),
+      0 12px 20px rgba(86, 18, 8, 0.26);
+    color: #ffe6b7;
+    text-align: center;
+    transition: opacity 900ms ease, transform 900ms ease;
+  }
+
+  .shared-link-arrival-kicker {
+    color: rgba(255, 225, 184, 0.9);
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .shared-link-arrival-main {
+    display: grid;
+    justify-items: center;
+    width: 100%;
+  }
+
+  .shared-link-arrival strong {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    letter-spacing: 0.02em;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .shared-link-arrival-close {
+    padding: 4px 10px;
+    border: 1px solid rgba(255, 231, 193, 0.24);
+    border-radius: 999px;
+    background: rgba(86, 18, 8, 0.24);
+    color: #fff1d2;
+    font-family: var(--font-display);
+    font-size: 0.64rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    box-shadow: inset 0 1px 0 rgba(255, 239, 212, 0.12);
+  }
+
+  .shared-link-arrival-close:hover:not(:disabled),
+  .shared-link-arrival-close:focus-visible:not(:disabled) {
+    transform: translateY(-1px);
+    background: rgba(86, 18, 8, 0.34);
+  }
+
+  .shared-link-arrival-countdown {
+    color: rgba(255, 225, 184, 0.82);
+    font-family: var(--font-display);
+    font-size: 0.68rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .shared-link-arrival-fading {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px);
+  }
+
   .footer-session-note {
     margin: 0 auto 0 0;
     color: rgba(232, 214, 181, 0.74);
     font-size: 0.82rem;
     line-height: 1.2;
+  }
+
+  .about-form {
+    gap: 18px;
+  }
+
+  .about-brand-mark {
+    display: grid;
+    justify-items: center;
+    margin-top: 4px;
+  }
+
+  .about-brand-mark img {
+    width: 92px;
+    height: 92px;
+    object-fit: cover;
+    border-radius: 18px;
+    box-shadow:
+      0 14px 24px rgba(19, 8, 4, 0.26),
+      0 0 0 1px rgba(255, 220, 177, 0.12);
+  }
+
+  .about-copy-block {
+    display: grid;
+    gap: 8px;
+  }
+
+  .about-copy-block strong {
+    color: #f3dfbb;
+    font-family: var(--font-display);
+    font-size: 0.82rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .about-copy-block p,
+  .about-copy-block a {
+    margin: 0;
+    color: rgba(245, 233, 205, 0.9);
+    line-height: 1.5;
+  }
+
+  .about-copy-block a {
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+  }
+
+  .about-legal-note {
+    margin-top: 8px;
   }
 
   .source-tab-strip {
@@ -6257,6 +6131,28 @@
       0 0 16px rgba(71, 236, 224, 0.08);
   }
 
+  .selector-unit-active {
+    border-color: rgba(252, 137, 95, 0.3);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 238, 200, 0.08),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.24),
+      0 0 0 1px rgba(214, 93, 58, 0.14),
+      0 0 18px rgba(252, 137, 95, 0.08);
+  }
+
+  .selector-unit-unavailable {
+    opacity: 0.56;
+    cursor: default;
+  }
+
+  .selector-unit:disabled:hover,
+  .selector-unit:disabled:focus-visible {
+    border-color: rgba(255, 225, 176, 0.12);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 238, 200, 0.08),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.24);
+  }
+
   .selector-unit-idle {
     cursor: default;
     gap: 10px;
@@ -6425,6 +6321,7 @@
   .active-filter-chip {
     display: inline-flex;
     align-items: center;
+    gap: 8px;
     padding: 6px 12px;
     border-radius: 999px;
     background:
@@ -6433,6 +6330,14 @@
     color: #d9fffb;
     font-size: 0.84rem;
     box-shadow: 0 0 12px rgba(71, 236, 224, 0.08);
+  }
+
+  .rotary-head-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 
   .upload-form {
@@ -6899,7 +6804,7 @@
       position: fixed;
       left: 12px;
       right: 12px;
-      bottom: env(safe-area-inset-bottom, 0px);
+      bottom: max(8px, env(safe-area-inset-bottom, 0px));
       z-index: 40;
       height: 70px;
       min-height: 70px;
@@ -6952,6 +6857,46 @@
       align-items: flex-start;
     }
 
+    .bottom-strip-footer {
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .footer-session-note {
+      width: 100%;
+      margin: 0;
+      text-align: center;
+      font-size: 0.78rem;
+    }
+
+    .source-profile-button,
+    .source-signout-button {
+      padding-inline: 12px;
+      font-size: 0.76rem;
+    }
+
+    .source-inbox-button {
+      width: 40px;
+      height: 40px;
+    }
+
+    .source-info-button {
+      width: 40px;
+      height: 40px;
+    }
+
+    .message-icon {
+      width: 26px;
+      height: 26px;
+    }
+
+    .info-icon {
+      width: 22px;
+      height: 22px;
+      font-size: 0.94rem;
+    }
+
     .stash-card-top {
       flex-direction: row;
       align-items: flex-start;
@@ -6993,7 +6938,7 @@
     .random-button {
       left: 10px;
       right: 10px;
-      bottom: env(safe-area-inset-bottom, 0px);
+      bottom: max(8px, env(safe-area-inset-bottom, 0px));
       height: 64px;
       min-height: 64px;
       font-size: 1.5rem;
@@ -7002,6 +6947,47 @@
 
     .random-button-content {
       min-height: 34px;
+    }
+
+    .bottom-strip-footer {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, auto));
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .footer-session-note {
+      grid-column: 1 / -1;
+      font-size: 0.74rem;
+    }
+
+    .source-profile-button,
+    .source-signout-button {
+      padding: 7px 10px;
+      font-size: 0.72rem;
+      letter-spacing: 0.03em;
+    }
+
+    .source-inbox-button {
+      width: 38px;
+      height: 38px;
+    }
+
+    .source-info-button {
+      width: 38px;
+      height: 38px;
+    }
+
+    .message-icon {
+      width: 24px;
+      height: 24px;
+    }
+
+    .info-icon {
+      width: 20px;
+      height: 20px;
+      font-size: 0.88rem;
     }
 
     .stash-card-top {

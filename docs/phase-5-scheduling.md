@@ -3,7 +3,7 @@
 Phase 5 cleanup is now exposed through:
 
 - SQL function: `select * from run_phase5_cleanup();`
-- HTTP endpoint: `POST /api/admin/phase5-cleanup`
+- HTTP endpoint: `GET` or `POST /api/admin/phase5-cleanup`
 
 ## Recommended cadence
 
@@ -16,21 +16,31 @@ That is frequent enough for:
 - old `rate_limit_log`
 - `member_messages` older than 30 days
 
-## HTTP scheduling
+## Vercel scheduling
 
-Set this in your runtime environment:
+For Vercel, set:
+
+```env
+CRON_SECRET=replace-with-a-long-random-token
+```
+
+Vercel Cron will send `Authorization: Bearer <CRON_SECRET>` automatically when it calls the route configured in [vercel.json](/Users/joe/Documents/Grateful-Stash/vercel.json).
+
+The current project schedule runs once per day at `06:00 UTC`:
+
+```text
+/api/admin/phase5-cleanup
+```
+
+## Manual or external scheduling
+
+If you want to call the endpoint yourself from a script, cron service, or local check, set:
 
 ```env
 PHASE5_CLEANUP_TOKEN=replace-with-a-long-random-token
 ```
 
-Then schedule a daily `POST` request to:
-
-```text
-https://your-domain/api/admin/phase5-cleanup
-```
-
-Send one of these:
+Then send one of these:
 
 ```text
 Authorization: Bearer YOUR_TOKEN
@@ -59,3 +69,4 @@ x-phase5-cleanup-token: YOUR_TOKEN
 
 - Keep accepted `shared_source_access` rows intact unless the product policy changes.
 - This endpoint is intended for scheduler use only; do not expose the token client-side.
+- Vercel cron jobs issue `GET` requests, so the endpoint accepts both `GET` and `POST`.

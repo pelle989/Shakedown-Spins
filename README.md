@@ -43,6 +43,7 @@ RESEND_API_KEY=re_xxxxxxxxx
 AUTH_EMAIL_FROM="Shakedown Spins <auth@yourdomain.com>"
 
 PHASE5_CLEANUP_TOKEN=replace-with-a-long-random-token
+CRON_SECRET=replace-with-a-long-random-token
 ```
 
 Notes:
@@ -53,7 +54,8 @@ Notes:
 - `AUTH_SECRET` should be a long random value and must be set in production.
 - `RESEND_API_KEY` powers the magic-link email flow.
 - `AUTH_EMAIL_FROM` should use a sender domain verified in Resend.
-- `PHASE5_CLEANUP_TOKEN` protects the maintenance cleanup endpoint.
+- `PHASE5_CLEANUP_TOKEN` protects the maintenance cleanup endpoint for manual or external calls.
+- `CRON_SECRET` is the preferred Vercel cron secret because Vercel sends it automatically as a Bearer token.
 
 ## Setup
 
@@ -148,7 +150,7 @@ Deployment notes:
 - Leave Vercel `Output Directory` blank.
 - `AUTH_URL` must match the deployed site URL.
 - The Resend sender in `AUTH_EMAIL_FROM` must be verified.
-- The Phase 5 cleanup endpoint requires `PHASE5_CLEANUP_TOKEN`.
+- The Phase 5 cleanup endpoint should be protected by either `PHASE5_CLEANUP_TOKEN` or `CRON_SECRET`.
 
 ## Phase 5 Cleanup
 
