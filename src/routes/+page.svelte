@@ -6772,7 +6772,7 @@
     }
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 895px) {
     .shell {
       padding: 14px 12px calc(172px + env(safe-area-inset-bottom, 0px));
     }
@@ -6782,13 +6782,12 @@
     }
 
     .album-card {
-      height: calc(100svh - 118px - env(safe-area-inset-bottom, 0px));
-      grid-template-rows: minmax(0, 1fr) auto;
+      grid-template-rows: auto auto;
       gap: 12px;
     }
 
     .album-display {
-      min-height: clamp(248px, 40svh, 340px);
+      min-height: clamp(188px, 28svh, 232px);
     }
 
     .queue-column {
@@ -6910,13 +6909,27 @@
     }
   }
 
+  @media (max-width: 667px) {
+    .player-panel {
+      padding: 12px;
+    }
+
+    .album-card {
+      gap: 10px;
+    }
+
+    .album-display {
+      min-height: clamp(168px, 24svh, 208px);
+    }
+  }
+
   @media (max-width: 480px) {
     .shell {
       padding: 12px 10px calc(188px + env(safe-area-inset-bottom, 0px));
     }
 
     .album-display {
-      min-height: clamp(238px, 37vh, 300px);
+      min-height: clamp(154px, 22svh, 188px);
     }
 
     .album-stage {
