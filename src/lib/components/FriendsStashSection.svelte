@@ -608,4 +608,102 @@
   .friend-stash-shelf-toggle-active .friend-stash-shelf-toggle-thumb {
     transform: translateX(20px);
   }
+
+  @media (max-width: 860px) {
+    .stash-card-top {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .friend-stash-actions,
+    .loaded-stash-actions {
+      width: 100%;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: stretch;
+    }
+
+    .friend-stash-actions :global(button),
+    .loaded-stash-actions :global(button) {
+      width: 100%;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .crate-feed {
+      padding: 16px 10px 10px;
+      gap: 10px;
+    }
+
+    .stash-card {
+      min-height: 0;
+      padding: 16px 14px 12px;
+    }
+
+    .friend-shelf-card {
+      min-height: 0;
+      gap: 8px;
+    }
+
+    .stash-card-top {
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .stash-card-heading {
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 10px;
+    }
+
+    .empty-state h3,
+    .stash-card h3 {
+      font-size: 0.96rem;
+    }
+
+    .stash-index {
+      width: 30px;
+      height: 30px;
+      font-size: 0.8rem;
+    }
+
+    .stash-card p {
+      font-size: 0.84rem;
+      line-height: 1.25;
+    }
+
+    .friend-stash-actions,
+    .loaded-stash-actions {
+      gap: 8px;
+      grid-template-columns: 1fr;
+    }
+
+    .load-button,
+    .text-button,
+    .clear-stash-button {
+      min-width: 0;
+      width: 100%;
+      padding: 9px 12px;
+      font-size: 0.72rem;
+      letter-spacing: 0.03em;
+    }
+
+    .friend-stash-compare {
+      gap: 8px;
+      padding: 12px;
+    }
+
+    .friend-stash-compare-head {
+      gap: 10px;
+    }
+
+    .friend-stash-compare-title,
+    .friend-stash-compare label {
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+    }
+
+    .friend-stash-compare select {
+      padding: 10px 12px;
+      font-size: 0.84rem;
+    }
+  }
 </style>

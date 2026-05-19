@@ -505,6 +505,7 @@
     .stash-actions-group,
     .loaded-stash-actions {
       gap: 8px;
+      grid-template-columns: 1fr;
     }
 
     .stash-card-top .load-button,
@@ -520,6 +521,10 @@
     .stash-card-top .stash-edit-button,
     .loaded-stash-actions .stash-edit-button {
       padding: 9px 12px;
+    }
+
+    .my-stash-feed {
+      gap: 10px;
     }
   }
 </style>
