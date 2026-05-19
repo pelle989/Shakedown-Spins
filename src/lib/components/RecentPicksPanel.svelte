@@ -68,7 +68,7 @@
     gap: 18px;
     min-height: 0;
     background:
-      radial-gradient(120% 100% at 50% 0%, rgba(255, 255, 255, 0.38), transparent 22%),
+      radial-gradient(240% 100% at 50% 0%, rgba(255, 255, 255, 0.38), transparent 22%),
       linear-gradient(180deg, rgba(64, 36, 20, 0.84), rgba(26, 14, 8, 0.96)),
       #20110a;
     border: 1px solid rgba(255, 225, 176, 0.1);

@@ -637,6 +637,27 @@
   }
 
   @media (max-width: 980px) {
+    .selector-unit,
+    .selector-unit-idle {
+      gap: 10px;
+      min-height: 168px;
+      padding: 13px 12px 15px;
+    }
+
+    .selector-knob {
+      width: 82px;
+    }
+
+    .selector-knob::before {
+      top: 11px;
+      height: 22px;
+    }
+
+    .selector-value {
+      min-height: 2.4em;
+      font-size: 0.94rem;
+    }
+
     .selector-grid {
       grid-template-columns: 1fr;
     }

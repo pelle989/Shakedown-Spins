@@ -65,6 +65,7 @@
   let discogsHelpOpen = $state(false);
   let discogsTokenValue = $state('');
   let savingDiscogsToken = $state(false);
+  let discogsOAuthAutoImportHandled = $state(false);
   let currentPick = $state<Album | null>(null);
   let currentArtworkGalleryUrls = $state<string[]>([]);
   let discogsDetailsLoading = $state(false);
@@ -248,6 +249,7 @@
   const discogsStatusMessage = $derived.by(() => {
     const connected = page.url.searchParams.get('discogs');
     const error = page.url.searchParams.get('error');
+    const hasDiscogsConnection = Boolean(discogsConnection);
 
     if (connected === 'connected') {
       return 'Discogs is connected. Import your collection into My Stash whenever you are ready.';
@@ -255,6 +257,10 @@
 
     if (connected === 'oauth-connected') {
       return 'Discogs OAuth is connected. Import your collection into My Stash whenever you are ready.';
+    }
+
+    if (hasDiscogsConnection && error?.startsWith('Discogs')) {
+      return null;
     }
 
     if (error === 'DiscogsAuth') {
@@ -573,6 +579,22 @@
     const nextUrl = new URL(window.location.href);
     nextUrl.searchParams.delete('signedIn');
     window.history.replaceState({}, '', nextUrl);
+  });
+
+  $effect(() => {
+    const discogsState = page.url.searchParams.get('discogs');
+
+    if (
+      typeof window === 'undefined' ||
+      discogsState !== 'oauth-connected' ||
+      discogsOAuthAutoImportHandled ||
+      !data.session?.user
+    ) {
+      return;
+    }
+
+    discogsOAuthAutoImportHandled = true;
+    void importFromDiscogs({ autoLoad: true, clearStatusParam: true });
   });
 
   $effect(() => {
@@ -1457,7 +1479,15 @@
     artworkTouchStartX = null;
   }
 
-  async function importFromDiscogs() {
+  function clearDiscogsUrlState() {
+    if (typeof window === 'undefined') return;
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.delete('discogs');
+    nextUrl.searchParams.delete('error');
+    window.history.replaceState({}, '', nextUrl);
+  }
+
+  async function importFromDiscogs(options?: { autoLoad?: boolean; clearStatusParam?: boolean }) {
     uploadError = null;
     uploadSuccess = null;
     sourceManageError = null;
@@ -1484,6 +1514,14 @@
         .then((payload: { sources: PrivateSourceSummary[] }) => payload.sources);
       stashView = 'mine';
       triggerSourceHighlight(payload.imported.sourceId);
+
+      if (options?.autoLoad) {
+        await loadPrivateSource(payload.imported.sourceId);
+      }
+
+      if (options?.clearStatusParam) {
+        clearDiscogsUrlState();
+      }
     } catch {
       uploadError = 'Discogs import failed.';
     } finally {
@@ -3284,7 +3322,7 @@
       onclick={(event) => event.stopPropagation()}
     >
       <div class="auth-modal-head">
-        <h3 id="discogs-reset-modal-title">Reset Discogs Key</h3>
+        <h3 id="discogs-reset-modal-title">Disconnect Discogs</h3>
       </div>
       <div class="auth-status-card">
         <div class="auth-status-copy">
@@ -3293,7 +3331,7 @@
       </div>
       <div class="stash-edit-actions">
         <button class="load-button clear-stash-button" type="button" onclick={resetDiscogsToken}>
-          Reset Discogs Key
+          Disconnect Discogs
         </button>
         <button class="text-button" type="button" onclick={() => (resetDiscogsWarningOpen = false)}>
           Cancel
@@ -6793,6 +6831,47 @@
     }
   }
 
+  @media (max-width: 1024px) {
+    .bottom-strip-footer {
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      text-align: center;
+    }
+
+    .footer-session-note {
+      width: 100%;
+      margin: 0;
+      text-align: center;
+      font-size: 0.78rem;
+    }
+
+    .source-inbox-button,
+    .source-profile-button,
+    .source-signout-form {
+      order: 2;
+    }
+
+    .source-info-button {
+      order: 3;
+      align-self: center;
+      margin-top: 4px;
+      width: 34px;
+      height: 34px;
+    }
+
+    .message-icon {
+      width: 26px;
+      height: 26px;
+    }
+
+    .info-icon {
+      width: 20px;
+      height: 20px;
+    }
+  }
+
   @media (max-width: 895px) {
     .shell {
       padding: 14px 12px calc(172px + env(safe-area-inset-bottom, 0px));
@@ -6904,8 +6983,8 @@
     }
 
     .source-info-button {
-      width: 40px;
-      height: 40px;
+      width: 38px;
+      height: 38px;
     }
 
     .message-icon {
@@ -6914,9 +6993,9 @@
     }
 
     .info-icon {
-      width: 22px;
-      height: 22px;
-      font-size: 0.94rem;
+      width: 20px;
+      height: 20px;
+      font-size: 0.9rem;
     }
 
     .stash-card-top {
