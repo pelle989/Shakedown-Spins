@@ -1,3 +1,4 @@
+import { dev } from '$app/environment';
 import { DrizzleAdapter } from '@auth/drizzle-adapter';
 import { SvelteKitAuth } from '@auth/sveltekit';
 import Resend from '@auth/sveltekit/providers/resend';
@@ -10,10 +11,15 @@ import {
 } from '$lib/server/auth-email';
 import { authDb, schema } from '$lib/server/db/client';
 
-const authSecret = env.AUTH_SECRET ?? process.env.AUTH_SECRET ?? 'phase-2-dev-secret-change-me';
+const configuredAuthSecret = env.AUTH_SECRET ?? process.env.AUTH_SECRET;
+const authSecret = configuredAuthSecret || (dev ? 'phase-2-dev-secret-change-me' : null);
 const authEmailFrom =
   env.AUTH_EMAIL_FROM ?? process.env.AUTH_EMAIL_FROM ?? 'Shakedown Spins <auth@example.com>';
 const resendApiKey = env.RESEND_API_KEY ?? process.env.RESEND_API_KEY ?? '';
+
+if (!authSecret) {
+  throw new Error('AUTH_SECRET must be configured in non-development environments.');
+}
 
 export const { handle, signIn, signOut } = SvelteKitAuth({
   secret: authSecret,

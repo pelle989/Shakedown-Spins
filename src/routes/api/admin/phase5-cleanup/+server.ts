@@ -3,20 +3,29 @@ import { json, type RequestHandler } from '@sveltejs/kit';
 
 import { runPhase5Cleanup } from '$lib/server/maintenance';
 
+function getExpectedTokens() {
+  return [env.PHASE5_CLEANUP_TOKEN?.trim(), env.CRON_SECRET?.trim()].filter(
+    (token): token is string => Boolean(token)
+  );
+}
+
 function isAuthorized(request: Request) {
-  const expected = env.PHASE5_CLEANUP_TOKEN?.trim();
-  if (!expected) return false;
+  const expectedTokens = getExpectedTokens();
+  if (!expectedTokens.length) return false;
 
   const authHeader = request.headers.get('authorization')?.trim();
   const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
   const headerToken = request.headers.get('x-phase5-cleanup-token')?.trim();
 
-  return bearer === expected || headerToken === expected;
+  return expectedTokens.some((expected) => bearer === expected || headerToken === expected);
 }
 
-export const POST: RequestHandler = async ({ request }) => {
-  if (!env.PHASE5_CLEANUP_TOKEN) {
-    return json({ message: 'PHASE5_CLEANUP_TOKEN is not configured.' }, { status: 503 });
+async function handleCleanup(request: Request) {
+  if (!getExpectedTokens().length) {
+    return json(
+      { message: 'PHASE5_CLEANUP_TOKEN or CRON_SECRET must be configured.' },
+      { status: 503 }
+    );
   }
 
   if (!isAuthorized(request)) {
@@ -33,4 +42,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
     return json({ message: 'Unexpected server error.' }, { status: 500 });
   }
-};
+}
+
+export const GET: RequestHandler = async ({ request }) => handleCleanup(request);
+export const POST: RequestHandler = async ({ request }) => handleCleanup(request);

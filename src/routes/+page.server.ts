@@ -1,4 +1,6 @@
+import { dev } from '$app/environment';
 import { listStashes } from '$lib/db';
+import { getRootPageFixture } from '$lib/server/e2e-fixtures';
 import { listDiscogsConnection } from '$lib/server/discogs';
 import { listMemberMessages } from '$lib/server/messages';
 import { getUserProfileSettings } from '$lib/server/profile';
@@ -13,6 +15,15 @@ import {
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
+  const fixtureName = event.url.searchParams.get('__fixture');
+
+  if (fixtureName && (dev || process.env.NODE_ENV === 'test')) {
+    const fixture = getRootPageFixture(fixtureName);
+    if (fixture) {
+      return fixture;
+    }
+  }
+
   const feed = await listStashes();
   const session = await event.locals.auth();
   const userId = session?.user?.id ?? null;

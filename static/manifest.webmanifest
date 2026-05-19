@@ -1,0 +1,24 @@
+{
+  "name": "Shakedown Spins",
+  "short_name": "Shakedown Spins",
+  "description": "Roll through street stashes, private collections, and shared friend stacks in a vintage listening-room interface.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f3dfbf",
+  "theme_color": "#fd895f",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
