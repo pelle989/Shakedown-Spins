@@ -1,4 +1,5 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
+import { fetchWithTimeout } from '$lib/server/http';
 
 const MUSICBRAINZ_API_BASE = 'https://musicbrainz.org/ws/2';
 const COVER_ART_ARCHIVE_BASE = 'https://coverartarchive.org';
@@ -49,7 +50,7 @@ async function searchMusicBrainzRelease(args: { artist: string; title: string; y
   url.searchParams.set('fmt', 'json');
   url.searchParams.set('limit', '5');
 
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     headers: {
       'User-Agent': USER_AGENT
     }
@@ -72,11 +73,14 @@ async function searchMusicBrainzRelease(args: { artist: string; title: string; y
 }
 
 async function fetchCoverArtImages(releaseId: string) {
-  const response = await fetch(`${COVER_ART_ARCHIVE_BASE}/release/${encodeURIComponent(releaseId)}`, {
-    headers: {
-      'User-Agent': USER_AGENT
+  const response = await fetchWithTimeout(
+    `${COVER_ART_ARCHIVE_BASE}/release/${encodeURIComponent(releaseId)}`,
+    {
+      headers: {
+        'User-Agent': USER_AGENT
+      }
     }
-  });
+  );
 
   if (!response.ok) {
     return [];

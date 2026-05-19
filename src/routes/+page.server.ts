@@ -2,6 +2,7 @@ import { dev } from '$app/environment';
 import { listStashes } from '$lib/db';
 import { getRootPageFixture } from '$lib/server/e2e-fixtures';
 import { listDiscogsConnection } from '$lib/server/discogs';
+import { isDiscogsOAuthConfigured } from '$lib/server/discogs-oauth';
 import { listMemberMessages } from '$lib/server/messages';
 import { getUserProfileSettings } from '$lib/server/profile';
 import { getUserUiPreferences } from '$lib/server/ui-preferences';
@@ -67,6 +68,7 @@ export const load: PageServerLoad = async (event) => {
     discogsConnection,
     currentUserProfile,
     uiPreferences,
+    discogsOAuthEnabled: isDiscogsOAuthConfigured(),
     initialSharedSource,
     initialSharedOverlap
   };

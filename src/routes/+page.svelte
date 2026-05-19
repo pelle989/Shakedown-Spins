@@ -253,8 +253,20 @@
       return 'Discogs is connected. Import your collection into My Stash whenever you are ready.';
     }
 
+    if (connected === 'oauth-connected') {
+      return 'Discogs OAuth is connected. Import your collection into My Stash whenever you are ready.';
+    }
+
     if (error === 'DiscogsAuth') {
       return 'Sign in before connecting Discogs.';
+    }
+
+    if (error === 'DiscogsOAuth') {
+      return 'Discogs OAuth could not be completed. Try again or use a personal token instead.';
+    }
+
+    if (error === 'DiscogsOAuthDenied') {
+      return 'Discogs OAuth was cancelled before access was granted.';
     }
 
     return null;
@@ -1629,21 +1641,29 @@
         body: formData
       });
       const payload = (await response.json()) as { message?: string; username?: string };
+      const connectionPayload = payload as {
+        message?: string;
+        username?: string;
+        authMode?: 'personal_token' | 'oauth';
+        discogsUserId?: string;
+      };
 
-      if (!response.ok || !payload.username) {
-        uploadError = payload.message ?? 'Discogs connection failed.';
+      if (!response.ok || !connectionPayload.username) {
+        uploadError = connectionPayload.message ?? 'Discogs connection failed.';
         return;
       }
 
       discogsConnection = {
-        username: payload.username,
-        connectedAt: new Date().toISOString()
+        username: connectionPayload.username,
+        connectedAt: new Date().toISOString(),
+        authMode: connectionPayload.authMode ?? 'personal_token',
+        discogsUserId: connectionPayload.discogsUserId
       };
       void invalidate('/');
       discogsTokenValue = '';
       discogsTokenModalOpen = false;
       stashView = 'mine';
-      uploadSuccess = `Discogs connected as ${payload.username}.`;
+      uploadSuccess = `Discogs connected as ${connectionPayload.username}.`;
     } catch {
       uploadError = 'Discogs connection failed.';
     } finally {
@@ -2772,6 +2792,7 @@
         {pendingUpload}
         {uploadDestination}
         {discogsConnection}
+        discogsOAuthEnabled={Boolean(data.discogsOAuthEnabled)}
         {discogsSourceSummary}
         {discogsStatusMessage}
         {discogsSuccessMessage}

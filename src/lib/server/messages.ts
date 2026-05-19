@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, isNull, ne, or } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, isNull, ne, or, sql } from 'drizzle-orm';
 
 import type {
   MemberDirectoryEntry,
@@ -9,6 +9,11 @@ import { authDb, schema } from '$lib/server/db/client';
 import { buildSharedOwnerProfile } from '$lib/server/profile';
 import { ensureSharedSourceAccess } from '$lib/server/sources';
 import { validateMessageBody } from '$lib/server/validation';
+
+const MESSAGE_RATE_LIMIT_WINDOW_MINUTES = 10;
+const MESSAGE_RATE_LIMIT_MAX_PER_WINDOW = 8;
+const MESSAGE_RATE_LIMIT_RETENTION_HOURS = 24;
+const MESSAGE_RATE_LIMIT_KEY_PREFIX = 'member-message';
 
 function memberMessagesUnavailable(error: unknown) {
   return (
@@ -28,6 +33,37 @@ function mapMember(user: typeof schema.users.$inferSelect): MemberDirectoryEntry
 
 function mapOwner(user: typeof schema.users.$inferSelect): SharedOwnerProfile {
   return buildSharedOwnerProfile(user);
+}
+
+async function assertMemberMessageWithinRateLimit(senderUserId: string) {
+  const rateLimitKey = `${MESSAGE_RATE_LIMIT_KEY_PREFIX}:${senderUserId}`;
+
+  await authDb.transaction(async (tx) => {
+    await tx.execute(sql`
+      delete from rate_limit_log
+      where ip_hash = ${rateLimitKey}
+        and created_at < now() - ${MESSAGE_RATE_LIMIT_RETENTION_HOURS} * interval '1 hour'
+    `);
+
+    const recentCountResult = await tx.execute(sql`
+      select count(*)::int as count
+      from rate_limit_log
+      where ip_hash = ${rateLimitKey}
+        and created_at > now() - ${MESSAGE_RATE_LIMIT_WINDOW_MINUTES} * interval '1 minute'
+    `);
+
+    const recentCount = Number(recentCountResult.rows[0]?.count ?? 0);
+    if (recentCount >= MESSAGE_RATE_LIMIT_MAX_PER_WINDOW) {
+      const error = new Error('Too many messages sent. Please wait a few minutes and try again.');
+      error.name = 'RateLimitError';
+      throw error;
+    }
+
+    await tx.execute(sql`
+      insert into rate_limit_log (ip_hash)
+      values (${rateLimitKey})
+    `);
+  });
 }
 
 function mapMessageSummary(args: {
@@ -171,6 +207,8 @@ export async function sendMemberMessage(args: {
     if (!recipient) {
       throw new Error('That member could not be found.');
     }
+
+    await assertMemberMessageWithinRateLimit(args.senderUserId);
 
     const [message] = await authDb
       .insert(schema.memberMessages)

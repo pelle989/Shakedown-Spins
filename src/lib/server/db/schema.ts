@@ -93,15 +93,21 @@ export const discogsConnections = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    authMode: text('auth_mode').notNull(),
     username: text('username').notNull(),
     oauthToken: text('oauth_token').notNull(),
-    oauthTokenSecret: text('oauth_token_secret').notNull(),
+    oauthTokenSecret: text('oauth_token_secret'),
+    discogsUserId: text('discogs_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull()
   },
   (table) => [
     unique('discogs_connections_user_id_unique').on(table.userId),
-    index('discogs_connections_username_idx').on(table.username)
+    index('discogs_connections_username_idx').on(table.username),
+    check(
+      'discogs_connections_auth_mode_check',
+      sql`${table.authMode} in ('personal_token', 'oauth')`
+    )
   ]
 );
 

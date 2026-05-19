@@ -15,6 +15,7 @@
     pendingUpload: boolean;
     uploadDestination: 'private' | 'public';
     discogsConnection: DiscogsConnectionSummary | null;
+    discogsOAuthEnabled: boolean;
     discogsSourceSummary: PrivateSourceSummary | null;
     discogsStatusMessage: string | null;
     discogsSuccessMessage: string | null;
@@ -45,6 +46,7 @@
     pendingUpload,
     uploadDestination,
     discogsConnection,
+    discogsOAuthEnabled,
     discogsSourceSummary,
     discogsStatusMessage,
     discogsSuccessMessage,
@@ -200,6 +202,10 @@
           <span class="auth-kicker">Discogs</span>
           {#if discogsConnection}
             <strong>Connected as {discogsConnection.username}</strong>
+            <p>
+              Connected via
+              {discogsConnection.authMode === 'oauth' ? 'Discogs OAuth' : 'Personal Token'}
+            </p>
             <p>Last imported: {formatSourceDateTime(discogsSourceSummary?.lastSyncedAt)}</p>
           {:else}
             <strong>Discogs not connected</strong>
@@ -233,8 +239,13 @@
             </button>
           {:else}
             <button class="load-button discogs-connect-button" type="button" onclick={onOpenDiscogsTokenModal}>
-              Connect Discogs
+              Use Personal Token
             </button>
+            {#if discogsOAuthEnabled}
+              <a class="load-button discogs-connect-button" href="/api/discogs/oauth/start">
+                Connect with OAuth
+              </a>
+            {/if}
           {/if}
         </div>
       </div>

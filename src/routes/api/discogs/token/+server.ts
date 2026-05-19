@@ -17,12 +17,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       return json({ message: 'Discogs personal token is required.' }, { status: 400 });
     }
 
-    const username = await saveDiscogsToken({
+    const connection = await saveDiscogsToken({
       userId: session.user.id,
       token: rawToken
     });
 
-    return json({ username });
+    return json(connection);
   } catch (error) {
     if (error instanceof Error) {
       return json({ message: error.message }, { status: 400 });

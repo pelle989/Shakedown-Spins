@@ -38,6 +38,10 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 
     return json({ sentMessage });
   } catch (error) {
+    if (error instanceof Error && error.name === 'RateLimitError') {
+      return json({ message: error.message }, { status: 429 });
+    }
+
     if (error instanceof Error) {
       return json({ message: error.message }, { status: 400 });
     }

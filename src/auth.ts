@@ -10,6 +10,7 @@ import {
   buildVerificationEmailText
 } from '$lib/server/auth-email';
 import { authDb, schema } from '$lib/server/db/client';
+import { fetchWithTimeout } from '$lib/server/http';
 
 const configuredAuthSecret = env.AUTH_SECRET ?? process.env.AUTH_SECRET;
 const authSecret = configuredAuthSecret || (dev ? 'phase-2-dev-secret-change-me' : null);
@@ -57,7 +58,7 @@ export const { handle, signIn, signOut } = SvelteKitAuth({
             const { identifier: to, provider, url } = params;
             const { host } = new URL(url);
 
-            const response = await fetch('https://api.resend.com/emails', {
+            const response = await fetchWithTimeout('https://api.resend.com/emails', {
               method: 'POST',
               headers: {
                 Authorization: `Bearer ${provider.apiKey}`,

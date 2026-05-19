@@ -1,17 +1,43 @@
 import { and, desc, eq } from 'drizzle-orm';
 
-import type { DiscogsAlbumDetails, DiscogsConnectionSummary, ParsedAlbumInput } from '$lib/types';
+import type {
+  DiscogsAlbumDetails,
+  DiscogsAuthMode,
+  DiscogsConnectionSummary,
+  ParsedAlbumInput
+} from '$lib/types';
 import { authDb, schema } from '$lib/server/db/client';
+import { fetchDiscogsOAuthIdentity, fetchDiscogsOAuthResource } from '$lib/server/discogs-oauth';
+import { fetchWithTimeout } from '$lib/server/http';
 
 const DISCOGS_API_BASE = 'https://api.discogs.com';
 const USER_AGENT = 'ShakedownSpins/1.0 +https://joekirchner.com';
 
 type DiscogsConnectionRow = typeof schema.discogsConnections.$inferSelect;
+type ActiveDiscogsCredential = {
+  authMode: DiscogsAuthMode;
+  username: string;
+  token: string;
+  tokenSecret?: string | null;
+  discogsUserId?: string | null;
+};
 
 function mapDiscogsConnection(row: DiscogsConnectionRow): DiscogsConnectionSummary {
   return {
     username: row.username,
-    connectedAt: row.createdAt.toISOString()
+    connectedAt: row.createdAt.toISOString(),
+    authMode: row.authMode as DiscogsAuthMode,
+    discogsUserId: row.discogsUserId ?? undefined
+  };
+}
+
+function mapActiveDiscogsCredential(row: DiscogsConnectionRow): ActiveDiscogsCredential {
+  return {
+    authMode: row.authMode as DiscogsAuthMode,
+    username: row.username,
+    token: row.oauthToken,
+    tokenSecret: row.oauthTokenSecret,
+    discogsUserId: row.discogsUserId
   };
 }
 
@@ -75,24 +101,29 @@ function buildDiscogsBlurb(notes?: string | null) {
 }
 
 async function fetchDiscogsIdentity(token: string) {
-  const response = await fetch(`${DISCOGS_API_BASE}/oauth/identity`, {
+  const response = await fetchWithTimeout(`${DISCOGS_API_BASE}/oauth/identity`, {
     headers: {
       Authorization: buildDiscogsTokenHeader(token),
       'User-Agent': USER_AGENT
     }
   });
 
-  const payload = (await response.json().catch(() => null)) as { username?: string } | null;
+  const payload = (await response.json().catch(() => null)) as
+    | { id?: number | string; username?: string }
+    | null;
 
   if (!response.ok || !payload?.username) {
     throw new Error('Discogs token could not be verified. Check the token and try again.');
   }
 
-  return payload.username;
+  return {
+    username: payload.username,
+    discogsUserId: payload.id ? String(payload.id) : null
+  };
 }
 
 async function tokenDiscogsFetch(args: { url: string; token: string }) {
-  return fetch(args.url, {
+  return fetchWithTimeout(args.url, {
     headers: {
       Authorization: buildDiscogsTokenHeader(args.token),
       'User-Agent': USER_AGENT
@@ -100,8 +131,26 @@ async function tokenDiscogsFetch(args: { url: string; token: string }) {
   });
 }
 
+async function authenticatedDiscogsFetch(args: {
+  url: string;
+  credential: ActiveDiscogsCredential;
+}) {
+  if (args.credential.authMode === 'oauth') {
+    return fetchDiscogsOAuthResource({
+      url: args.url,
+      oauthToken: args.credential.token,
+      oauthTokenSecret: args.credential.tokenSecret ?? ''
+    });
+  }
+
+  return tokenDiscogsFetch({
+    url: args.url,
+    token: args.credential.token
+  });
+}
+
 async function publicDiscogsFetch(url: string) {
-  return fetch(url, {
+  return fetchWithTimeout(url, {
     headers: {
       'User-Agent': USER_AGENT
     }
@@ -130,7 +179,7 @@ export async function saveDiscogsToken(args: { userId: string; token: string }) 
     throw new Error('Discogs personal token is required.');
   }
 
-  const username = await fetchDiscogsIdentity(token);
+  const { username, discogsUserId } = await fetchDiscogsIdentity(token);
   const now = new Date();
   const existing = await authDb.query.discogsConnections.findFirst({
     where: eq(schema.discogsConnections.userId, args.userId)
@@ -140,23 +189,77 @@ export async function saveDiscogsToken(args: { userId: string; token: string }) 
     await authDb
       .update(schema.discogsConnections)
       .set({
+        authMode: 'personal_token',
         username,
         oauthToken: token,
-        oauthTokenSecret: '',
+        oauthTokenSecret: null,
+        discogsUserId,
         updatedAt: now
       })
       .where(eq(schema.discogsConnections.id, existing.id));
   } else {
     await authDb.insert(schema.discogsConnections).values({
       userId: args.userId,
+      authMode: 'personal_token',
       username,
       oauthToken: token,
-      oauthTokenSecret: '',
+      oauthTokenSecret: null,
+      discogsUserId,
       updatedAt: now
     });
   }
 
-  return username;
+  return {
+    username,
+    authMode: 'personal_token' as const,
+    discogsUserId: discogsUserId ?? undefined
+  };
+}
+
+export async function saveDiscogsOAuthConnection(args: {
+  userId: string;
+  oauthToken: string;
+  oauthTokenSecret: string;
+}) {
+  const { username, discogsUserId } = await fetchDiscogsOAuthIdentity({
+    oauthToken: args.oauthToken,
+    oauthTokenSecret: args.oauthTokenSecret
+  });
+
+  const now = new Date();
+  const existing = await authDb.query.discogsConnections.findFirst({
+    where: eq(schema.discogsConnections.userId, args.userId)
+  });
+
+  if (existing) {
+    await authDb
+      .update(schema.discogsConnections)
+      .set({
+        authMode: 'oauth',
+        username,
+        oauthToken: args.oauthToken,
+        oauthTokenSecret: args.oauthTokenSecret,
+        discogsUserId,
+        updatedAt: now
+      })
+      .where(eq(schema.discogsConnections.id, existing.id));
+  } else {
+    await authDb.insert(schema.discogsConnections).values({
+      userId: args.userId,
+      authMode: 'oauth',
+      username,
+      oauthToken: args.oauthToken,
+      oauthTokenSecret: args.oauthTokenSecret,
+      discogsUserId,
+      updatedAt: now
+    });
+  }
+
+  return {
+    username,
+    authMode: 'oauth' as const,
+    discogsUserId: discogsUserId ?? undefined
+  };
 }
 
 async function requireDiscogsConnection(userId: string) {
@@ -168,7 +271,7 @@ async function requireDiscogsConnection(userId: string) {
     throw new Error('Connect Discogs before importing your collection.');
   }
 
-  return connection;
+  return mapActiveDiscogsCredential(connection);
 }
 
 export async function importDiscogsCollection(userId: string) {
@@ -180,10 +283,7 @@ export async function importDiscogsCollection(userId: string) {
 
   while (page <= totalPages) {
     const url = `${DISCOGS_API_BASE}/users/${encodeURIComponent(connection.username)}/collection/folders/0/releases?per_page=100&page=${page}`;
-    const response = await tokenDiscogsFetch({
-      url,
-      token: connection.oauthToken
-    });
+    const response = await authenticatedDiscogsFetch({ url, credential: connection });
 
     if (!response.ok) {
       const message = await response.text();
@@ -362,9 +462,9 @@ export async function getDiscogsReleaseDetails(args: {
   }
 
   const connection = await requireDiscogsConnection(args.userId);
-  const response = await tokenDiscogsFetch({
+  const response = await authenticatedDiscogsFetch({
     url: `${DISCOGS_API_BASE}/releases/${encodeURIComponent(album.discogsId)}`,
-    token: connection.oauthToken
+    credential: connection
   });
 
   if (!response.ok) {
@@ -433,9 +533,10 @@ export async function getDiscogsReleaseDetailsByDiscogsId(args: {
   }
 
   const connection = await getOptionalDiscogsConnection(args.userId);
+  const credential = connection ? mapActiveDiscogsCredential(connection) : null;
   const releaseUrl = `${DISCOGS_API_BASE}/releases/${encodeURIComponent(discogsId)}`;
-  const response = connection
-    ? await tokenDiscogsFetch({ url: releaseUrl, token: connection.oauthToken })
+  const response = credential
+    ? await authenticatedDiscogsFetch({ url: releaseUrl, credential })
     : await publicDiscogsFetch(releaseUrl);
 
   if (!response.ok) {
