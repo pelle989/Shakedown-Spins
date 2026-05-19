@@ -10,8 +10,28 @@ export const GET: RequestHandler = async ({ locals, cookies, url }) => {
     throw redirect(303, '/?error=DiscogsAuth');
   }
 
+  cookies.delete(DISCOGS_OAUTH_COOKIE, { path: '/' });
+
   const callbackUrl = buildDiscogsOAuthCallbackUrl(url.origin);
-  const requestToken = await requestDiscogsRequestToken(callbackUrl);
+  let requestToken;
+
+  try {
+    requestToken = await requestDiscogsRequestToken(callbackUrl);
+    console.info('[discogs-oauth:start] request token created', {
+      userId: session.user.id,
+      origin: url.origin,
+      callbackUrl,
+      oauthTokenSuffix: requestToken.oauthToken.slice(-6)
+    });
+  } catch (error) {
+    console.error('[discogs-oauth:start] request token failed', {
+      userId: session.user.id,
+      origin: url.origin,
+      callbackUrl,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    throw redirect(303, '/?error=DiscogsOAuth');
+  }
 
   cookies.set(
     DISCOGS_OAUTH_COOKIE,

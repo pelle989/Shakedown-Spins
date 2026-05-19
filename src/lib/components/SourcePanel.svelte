@@ -201,15 +201,12 @@
         <div class="discogs-copy">
           <span class="auth-kicker">Discogs</span>
           {#if discogsConnection}
-            <strong>Connected as {discogsConnection.username}</strong>
-            <p>
-              Connected via
-              {discogsConnection.authMode === 'oauth' ? 'Discogs OAuth' : 'Personal Token'}
-            </p>
+            <strong>Connected to Discogs as {discogsConnection.username}</strong>
+            <p>Connection method: {discogsConnection.authMode === 'oauth' ? 'OAuth' : 'Personal Token'}</p>
             <p>Last imported: {formatSourceDateTime(discogsSourceSummary?.lastSyncedAt)}</p>
           {:else}
             <strong>Discogs not connected</strong>
-            <p>Paste a personal Discogs token to connect your private collection.</p>
+            <p>Connect Discogs to import your private collection.</p>
           {/if}
           {#if discogsStatusMessage}
             <p class="auth-error-note">{discogsStatusMessage}</p>
@@ -235,17 +232,22 @@
               type="button"
               onclick={onOpenResetDiscogsWarning}
             >
-              Reset Discogs Key
+              Disconnect Discogs
             </button>
           {:else}
-            <button class="load-button discogs-connect-button" type="button" onclick={onOpenDiscogsTokenModal}>
-              Use Personal Token
-            </button>
             {#if discogsOAuthEnabled}
-              <a class="load-button discogs-connect-button" href="/api/discogs/oauth/start">
-                Connect with OAuth
+              <a
+                class="load-button discogs-connect-button"
+                href="/api/discogs/oauth/start"
+                data-sveltekit-preload-data="off"
+                data-sveltekit-reload
+              >
+                Connect with Discogs
               </a>
             {/if}
+            <button class="text-button discogs-connect-button discogs-token-button" type="button" onclick={onOpenDiscogsTokenModal}>
+              Connect with Personal Token
+            </button>
           {/if}
         </div>
       </div>
@@ -337,6 +339,14 @@
     color: #f7ead0;
     border-color: rgba(255, 214, 150, 0.12);
     background: rgba(255, 244, 220, 0.04);
+  }
+
+  .discogs-token-button {
+    min-width: 0;
+    padding-inline: 14px;
+    font-size: 0.74rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
   }
 
   .source-tab-active {

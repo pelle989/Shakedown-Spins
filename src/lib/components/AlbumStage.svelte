@@ -1,7 +1,8 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { fade, fly } from 'svelte/transition';
   import VinylLoader from '$lib/components/VinylLoader.svelte';
-  import type { ActiveCollectionState, Album, AlbumContext } from '$lib/types';
+  import type { ActiveCollectionState, Album, AlbumContext, ContextBlurb } from '$lib/types';
 
   type Props = {
     activeState: ActiveCollectionState;
@@ -46,6 +47,29 @@
     onHandleArtworkTouchStart,
     onHandleArtworkTouchEnd
   }: Props = $props();
+
+  let viewportWidth = $state(0);
+
+  function syncViewportWidth() {
+    if (typeof window !== 'undefined') {
+      viewportWidth = window.innerWidth;
+    }
+  }
+
+  function shouldShowContinuation(blurb: ContextBlurb | null) {
+    if (!blurb?.sourceUrl) return false;
+    if (blurb.truncated) return true;
+    if (viewportWidth <= 480) return blurb.text.length > 140;
+    if (viewportWidth <= 667) return blurb.text.length > 180;
+    if (viewportWidth <= 895) return blurb.text.length > 220;
+    return false;
+  }
+
+  onMount(() => {
+    syncViewportWidth();
+    window.addEventListener('resize', syncViewportWidth);
+    return () => window.removeEventListener('resize', syncViewportWidth);
+  });
 </script>
 
 <article class="album-card">
@@ -67,37 +91,43 @@
                 {#if currentAlbumDetail.albumSummary}
                   <div class="album-slot-fact-block">
                     <span class="album-slot-fact-kicker">Album • {currentAlbumDetail.albumSummary.source}</span>
-                    <p class="album-slot-fact-text">
+                    <p
+                      class:album-slot-fact-text-clamped={shouldShowContinuation(currentAlbumDetail.albumSummary)}
+                      class="album-slot-fact-text"
+                    >
                       {currentAlbumDetail.albumSummary.text}
-                      {#if currentAlbumDetail.albumSummary.truncated}
-                        <a
-                          class="album-slot-fact-link"
-                          href={currentAlbumDetail.albumSummary.sourceUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Continue…
-                        </a>
-                      {/if}
                     </p>
+                    {#if shouldShowContinuation(currentAlbumDetail.albumSummary)}
+                      <a
+                        class="album-slot-fact-link"
+                        href={currentAlbumDetail.albumSummary.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Continue…
+                      </a>
+                    {/if}
                   </div>
                 {/if}
                 {#if currentAlbumDetail.artistSummary}
                   <div class="album-slot-fact-block">
                     <span class="album-slot-fact-kicker">Artist • {currentAlbumDetail.artistSummary.source}</span>
-                    <p class="album-slot-fact-text">
+                    <p
+                      class:album-slot-fact-text-clamped={shouldShowContinuation(currentAlbumDetail.artistSummary)}
+                      class="album-slot-fact-text"
+                    >
                       {currentAlbumDetail.artistSummary.text}
-                      {#if currentAlbumDetail.artistSummary.truncated}
-                        <a
-                          class="album-slot-fact-link"
-                          href={currentAlbumDetail.artistSummary.sourceUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Continue…
-                        </a>
-                      {/if}
                     </p>
+                    {#if shouldShowContinuation(currentAlbumDetail.artistSummary)}
+                      <a
+                        class="album-slot-fact-link"
+                        href={currentAlbumDetail.artistSummary.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Continue…
+                      </a>
+                    {/if}
                   </div>
                 {/if}
               </div>
@@ -357,6 +387,7 @@
   .album-slot-fact-block {
     display: grid;
     gap: 6px;
+    min-width: 0;
   }
 
   .album-slot-fact-kicker {
@@ -381,7 +412,7 @@
   }
 
   .album-slot-fact-link {
-    margin-left: 0.42em;
+    justify-self: start;
     color: rgb(253 137 95);
     text-decoration: underline;
     text-underline-offset: 0.18em;
@@ -640,12 +671,12 @@
     }
 
     .art-slot {
-      width: min(42vw, 210px);
+      width: min(48vw, 256px);
     }
 
     .art-slot .cover-art {
-      width: min(78%, 176px);
-      height: min(78%, 176px);
+      width: min(88%, 228px);
+      height: min(88%, 228px);
     }
 
     .album-slot-text-view {
@@ -657,8 +688,15 @@
 
     .album-slot-fact-text,
     .album-slot-status {
-      font-size: 0.94rem;
-      line-height: 1.52;
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
+    .album-slot-fact-text-clamped {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 5;
+      overflow: hidden;
     }
 
     .lcd-copy {
@@ -691,8 +729,8 @@
     }
 
     .art-slot .cover-art {
-      width: min(100%, 352px);
-      height: min(100%, 352px);
+      width: min(100%, 392px);
+      height: min(100%, 392px);
     }
   }
 
@@ -713,13 +751,13 @@
     }
 
     .art-slot {
-      width: min(40vw, 180px);
+      width: min(54vw, 216px);
     }
 
     .art-slot .cover-art {
-      width: min(100%, 250px);
-      height: min(100%, 250px);
-      transform: translateY(-20px);
+      width: min(100%, 216px);
+      height: min(100%, 216px);
+      transform: translateY(-30px);
     }
 
     .album-slot-text-view {
@@ -727,6 +765,20 @@
       min-height: min(84%, 250px);
       padding: 16px 14px 52px;
       gap: 10px;
+    }
+
+    .album-slot-fact-text,
+    .album-slot-status {
+      font-size: 0.88rem;
+      line-height: 1.42;
+    }
+
+    .album-slot-fact-text-clamped {
+      -webkit-line-clamp: 4;
+    }
+
+    .album-slot-fact-link {
+      font-size: 0.84rem;
     }
 
     .lcd-copy {
@@ -768,7 +820,7 @@
     }
 
     .art-slot {
-      width: min(38vw, 154px);
+      width: min(58vw, 224px);
     }
 
     .album-slot-text-view {
@@ -780,18 +832,22 @@
 
     .album-slot-fact-text,
     .album-slot-status {
-      font-size: 0.92rem;
-      line-height: 1.52;
+      font-size: 0.82rem;
+      line-height: 1.36;
     }
 
     .album-slot-fact-link {
-      font-size: 0.86rem;
+      font-size: 0.8rem;
     }
 
     .art-slot .cover-art {
-      width: min(100%, 236px);
-      height: min(100%, 236px);
-      transform: translateY(-22px);
+      width: min(100%, 224px);
+      height: min(100%, 224px);
+      transform: translateY(-34px);
+    }
+
+    .album-slot-fact-text-clamped {
+      -webkit-line-clamp: 3;
     }
 
     .album-stage-year {
@@ -806,6 +862,16 @@
 
     .lcd-main {
       padding-inline: 10px;
+    }
+  }
+
+  @media (max-width: 450px) {
+    .art-slot .cover-art {
+      transform: translateY(-18px);
+    }
+
+    .art-gallery-controls {
+      bottom: 6px;
     }
   }
 </style>

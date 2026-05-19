@@ -445,10 +445,21 @@
     text-align: center;
   }
 
-  @media (max-width: 860px) {
+  @media (max-width: 1024px) {
+    .stash-card {
+      min-height: 0;
+      padding: 16px 14px 13px;
+    }
+
     .stash-card-top {
       flex-direction: column;
       align-items: stretch;
+      gap: 12px;
+    }
+
+    .stash-card-heading {
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: start;
     }
 
     .stash-actions-group,
@@ -469,6 +480,11 @@
     .loaded-stash-actions .stash-edit-button {
       margin-left: 0;
       justify-self: stretch;
+      min-width: 0;
+    }
+
+    .stash-card-top p {
+      line-height: 1.34;
     }
   }
 
