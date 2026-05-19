@@ -48,7 +48,7 @@
   let memberMessages = $state<MemberMessageSummary[]>([]);
   let unreadMessageCount = $state(0);
   let expandedInboxMessageIds = $state<string[]>([]);
-  let databaseAvailable = $state(false);
+  let databaseAvailable = $state(Boolean(data.databaseAvailable));
   let activeState = $state<ActiveCollectionState>({ status: 'idle' });
   let loadingRestore = $state(true);
   let restoringMessage = $state<string | null>(null);
@@ -6772,23 +6772,23 @@
     }
   }
 
-  @media (max-width: 860px) {
+  @media (max-width: 900px) {
     .shell {
-      padding: 14px 12px calc(150px + env(safe-area-inset-bottom, 0px));
+      padding: 14px 12px calc(172px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .player-panel {
+      padding: 14px;
     }
 
     .album-card {
-      grid-template-rows: auto auto;
-      gap: 14px;
+      height: calc(100svh - 118px - env(safe-area-inset-bottom, 0px));
+      grid-template-rows: minmax(0, 1fr) auto;
+      gap: 12px;
     }
 
     .album-display {
-      min-height: clamp(290px, 48vh, 400px);
-    }
-
-    .album-stage {
-      inset: 10px;
-      padding: 8px;
+      min-height: clamp(248px, 40svh, 340px);
     }
 
     .queue-column {
@@ -6804,7 +6804,7 @@
       position: fixed;
       left: 12px;
       right: 12px;
-      bottom: max(8px, env(safe-area-inset-bottom, 0px));
+      bottom: max(0px, env(safe-area-inset-bottom, 0px));
       z-index: 40;
       height: 70px;
       min-height: 70px;
@@ -6860,7 +6860,9 @@
     .bottom-strip-footer {
       flex-wrap: wrap;
       justify-content: center;
+      align-items: center;
       gap: 8px;
+      text-align: center;
     }
 
     .footer-session-note {
@@ -6910,7 +6912,7 @@
 
   @media (max-width: 480px) {
     .shell {
-      padding: 12px 10px calc(136px + env(safe-area-inset-bottom, 0px));
+      padding: 12px 10px calc(188px + env(safe-area-inset-bottom, 0px));
     }
 
     .album-display {
@@ -6936,13 +6938,15 @@
     }
 
     .random-button {
-      left: 10px;
-      right: 10px;
-      bottom: max(8px, env(safe-area-inset-bottom, 0px));
-      height: 64px;
-      min-height: 64px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 68px;
+      min-height: 68px;
+      padding: 12px 18px calc(14px + env(safe-area-inset-bottom, 0px));
       font-size: 1.5rem;
       letter-spacing: 0.08em;
+      border-radius: 18px 18px 0 0;
     }
 
     .random-button-content {
@@ -6950,16 +6954,23 @@
     }
 
     .bottom-strip-footer {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, auto));
+      display: flex;
+      flex-wrap: wrap;
       justify-content: center;
       align-items: center;
       gap: 8px;
     }
 
     .footer-session-note {
-      grid-column: 1 / -1;
+      order: 1;
+      width: 100%;
       font-size: 0.74rem;
+    }
+
+    .source-inbox-button,
+    .source-profile-button,
+    .source-signout-form {
+      order: 2;
     }
 
     .source-profile-button,
@@ -6969,12 +6980,19 @@
       letter-spacing: 0.03em;
     }
 
+    .source-signout-form {
+      margin: 0;
+    }
+
     .source-inbox-button {
       width: 38px;
       height: 38px;
     }
 
     .source-info-button {
+      order: 3;
+      flex: 0 0 100%;
+      margin-top: 2px;
       width: 38px;
       height: 38px;
     }

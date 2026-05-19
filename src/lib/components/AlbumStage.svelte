@@ -629,7 +629,13 @@
     justify-items: center;
   }
 
-  @media (max-width: 860px) {
+  @media (max-width: 900px) {
+    .album-card {
+      height: 100%;
+      grid-template-rows: minmax(0, 1fr) auto;
+      gap: 12px;
+    }
+
     .album-display {
       min-height: 0;
     }
@@ -640,7 +646,48 @@
     }
 
     .art-slot {
-      width: min(67vw, 385px);
+      width: min(58vw, 340px);
+    }
+
+    .art-slot .cover-art {
+      width: min(84%, 300px);
+      height: min(84%, 300px);
+    }
+
+    .album-slot-text-view {
+      width: min(92%, 340px);
+      min-height: min(86%, 300px);
+      padding: 18px 16px 56px;
+      gap: 12px;
+    }
+
+    .album-slot-fact-text,
+    .album-slot-status {
+      font-size: 0.94rem;
+      line-height: 1.52;
+    }
+
+    .lcd-copy {
+      min-height: 136px;
+      padding: 12px;
+      gap: 8px;
+    }
+
+    .lcd-main {
+      min-height: 108px;
+      padding: 12px 14px 10px;
+    }
+
+    .pick-reveal {
+      gap: 22px;
+    }
+
+    .lcd-copy h3 {
+      font-size: clamp(2rem, 4.9vw, 2.34rem);
+    }
+
+    .artist {
+      font-size: clamp(1.1rem, 3.4vw, 1.38rem);
     }
   }
 

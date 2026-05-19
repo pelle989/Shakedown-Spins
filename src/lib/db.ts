@@ -45,6 +45,7 @@ export function databaseAvailable(): boolean {
 }
 
 export async function listStashes(): Promise<FeedData> {
+  const configured = databaseAvailable();
   const pool = getReadPool();
   if (!pool) {
     return {
@@ -54,7 +55,7 @@ export async function listStashes(): Promise<FeedData> {
       memberMessages: [],
       unreadMessageCount: 0,
       discogsConnection: null,
-      databaseAvailable: false
+      databaseAvailable: configured
     };
   }
 
@@ -85,7 +86,7 @@ export async function listStashes(): Promise<FeedData> {
       memberMessages: [],
       unreadMessageCount: 0,
       discogsConnection: null,
-      databaseAvailable: false
+      databaseAvailable: configured
     };
   }
 }
