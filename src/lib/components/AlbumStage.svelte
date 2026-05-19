@@ -629,29 +629,23 @@
     justify-items: center;
   }
 
-  @media (max-width: 900px) {
-    .album-card {
-      height: 100%;
-      grid-template-rows: minmax(0, 1fr) auto;
-      gap: 12px;
-    }
-
+  @media (max-width: 895px) {
     .album-display {
       min-height: 0;
     }
 
     .album-stage {
-      inset: 0;
-      padding: 0;
+      inset: 2px;
+      padding: 2px;
     }
 
     .art-slot {
-      width: min(58vw, 340px);
+      width: min(42vw, 210px);
     }
 
     .art-slot .cover-art {
-      width: min(84%, 300px);
-      height: min(84%, 300px);
+      width: min(78%, 176px);
+      height: min(78%, 176px);
     }
 
     .album-slot-text-view {
@@ -691,14 +685,90 @@
     }
   }
 
+  @media (min-width: 760px) and (max-width: 895px) {
+    .art-slot {
+      width: min(92vw, 560px);
+    }
+
+    .art-slot .cover-art {
+      width: min(100%, 352px);
+      height: min(100%, 352px);
+    }
+  }
+
+  @media (max-width: 667px) {
+    .album-card {
+      grid-template-rows: 250px auto;
+      gap: 10px;
+    }
+
+    .album-display {
+      min-height: 250px;
+      height: 250px;
+    }
+
+    .album-stage {
+      inset: 1px;
+      padding: 1px;
+    }
+
+    .art-slot {
+      width: min(40vw, 180px);
+    }
+
+    .art-slot .cover-art {
+      width: min(100%, 250px);
+      height: min(100%, 250px);
+      transform: translateY(-20px);
+    }
+
+    .album-slot-text-view {
+      width: min(93%, 300px);
+      min-height: min(84%, 250px);
+      padding: 16px 14px 52px;
+      gap: 10px;
+    }
+
+    .lcd-copy {
+      min-height: 124px;
+      padding: 10px;
+    }
+
+    .lcd-main {
+      min-height: 96px;
+      padding: 10px 12px 8px;
+    }
+
+    .pick-reveal {
+      gap: 18px;
+    }
+
+    .lcd-copy h3 {
+      font-size: clamp(1.7rem, 5.1vw, 2rem);
+    }
+
+    .artist {
+      font-size: clamp(1rem, 3.3vw, 1.2rem);
+    }
+  }
+
   @media (max-width: 480px) {
+    .album-card {
+      grid-template-rows: 250px auto;
+    }
+
+    .album-display {
+      min-height: 250px;
+      height: 250px;
+    }
+
     .album-stage {
       inset: 0;
       padding: 0;
     }
 
     .art-slot {
-      width: min(78vw, 360px);
+      width: min(38vw, 154px);
     }
 
     .album-slot-text-view {
@@ -719,8 +789,9 @@
     }
 
     .art-slot .cover-art {
-      width: min(90%, 320px);
-      height: min(90%, 320px);
+      width: min(100%, 236px);
+      height: min(100%, 236px);
+      transform: translateY(-22px);
     }
 
     .album-stage-year {
