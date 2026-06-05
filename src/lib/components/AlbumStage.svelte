@@ -474,8 +474,8 @@
   .lcd-copy {
     display: grid;
     gap: 10px;
-    min-height: 170px;
-    padding: 14px;
+    min-height: 130px;
+    padding: 4px;
     border-radius: 16px;
     background:
       linear-gradient(180deg, rgba(214, 255, 248, 0.08), transparent 14%),
@@ -499,7 +499,7 @@
 
   .pick-reveal {
     display: grid;
-    gap: 33px;
+    gap: 17px;
   }
 
   .loading-placeholder {
@@ -700,8 +700,8 @@
     }
 
     .lcd-copy {
-      min-height: 136px;
-      padding: 12px;
+      min-height: 130px;
+      padding: 4px;
       gap: 8px;
     }
 
@@ -711,7 +711,7 @@
     }
 
     .pick-reveal {
-      gap: 22px;
+      gap: 17px;
     }
 
     .lcd-copy h3 {
@@ -782,8 +782,8 @@
     }
 
     .lcd-copy {
-      min-height: 124px;
-      padding: 10px;
+      min-height: 130px;
+      padding: 4px;
     }
 
     .lcd-main {
@@ -792,7 +792,7 @@
     }
 
     .pick-reveal {
-      gap: 18px;
+      gap: 17px;
     }
 
     .lcd-copy h3 {

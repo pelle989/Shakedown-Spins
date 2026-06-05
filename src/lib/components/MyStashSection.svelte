@@ -12,6 +12,7 @@
     formatSourceTimestamp: (value: string) => string;
     formatSourceDateTime: (value?: string | null) => string;
     onStartEditingSource: (source: PrivateSourceSummary) => void;
+    onStartSharingSource: (source: PrivateSourceSummary) => void;
     onLoadPrivateSource: (sourceId: string) => void;
     onUnloadStash: () => void | Promise<void>;
   };
@@ -27,6 +28,7 @@
     formatSourceTimestamp,
     formatSourceDateTime,
     onStartEditingSource,
+    onStartSharingSource,
     onLoadPrivateSource,
     onUnloadStash
   }: Props = $props();
@@ -49,12 +51,21 @@
           <div>
             <div class="loaded-card-title-row">
               <h3>{activePrivateSourceSummary.name}</h3>
-              <span class="loaded-indicator">Private</span>
+              <span class="loaded-indicator">
+                {activePrivateSourceSummary.visibility === 'shared' ? 'Shared' : 'Private'}
+              </span>
             </div>
             <p>{activePrivateSourceSummary.albumCount} albums saved in My Stash</p>
           </div>
         </div>
         <div class="loaded-stash-actions">
+          <button
+            class="text-button stash-share-button"
+            type="button"
+            onclick={() => onStartSharingSource(activePrivateSourceSummary)}
+          >
+            Share
+          </button>
           <button
             class="text-button stash-edit-button"
             type="button"
@@ -113,6 +124,13 @@
               onclick={() => onLoadPrivateSource(source.id)}
             >
               {loadingStashId === source.id ? 'Loading...' : 'Load'}
+            </button>
+            <button
+              class="text-button stash-share-button"
+              type="button"
+              onclick={() => onStartSharingSource(source)}
+            >
+              Share
             </button>
             <button
               class="text-button stash-edit-button"
@@ -311,6 +329,15 @@
     justify-content: center;
   }
 
+  .stash-share-button {
+    align-self: start;
+    min-width: 96px;
+    padding: 10px 14px;
+    color: #3a210f;
+    font-size: 0.8rem;
+    letter-spacing: 0.06em;
+  }
+
   .stash-settings-icon {
     display: inline-flex;
     width: 20px;
@@ -447,7 +474,7 @@
 
   @media (max-width: 1024px) {
     .stash-card {
-      min-height: 0;
+      min-height: 168px;
       padding: 16px 14px 13px;
     }
 
@@ -475,8 +502,10 @@
     }
 
     .stash-card-top .load-button,
+    .stash-card-top .stash-share-button,
     .stash-card-top .stash-edit-button,
     .loaded-stash-actions .clear-stash-button,
+    .loaded-stash-actions .stash-share-button,
     .loaded-stash-actions .stash-edit-button {
       margin-left: 0;
       justify-self: stretch;
@@ -490,7 +519,7 @@
 
   @media (max-width: 480px) {
     .stash-card {
-      min-height: 0;
+      min-height: 222px;
       padding: 16px 14px 12px;
     }
 
@@ -525,8 +554,10 @@
     }
 
     .stash-card-top .load-button,
+    .stash-card-top .stash-share-button,
     .stash-card-top .stash-edit-button,
     .loaded-stash-actions .clear-stash-button,
+    .loaded-stash-actions .stash-share-button,
     .loaded-stash-actions .stash-edit-button {
       min-width: 0;
       padding: 9px 12px;
@@ -534,7 +565,9 @@
       letter-spacing: 0.03em;
     }
 
+    .stash-card-top .stash-share-button,
     .stash-card-top .stash-edit-button,
+    .loaded-stash-actions .stash-share-button,
     .loaded-stash-actions .stash-edit-button {
       padding: 9px 12px;
     }

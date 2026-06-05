@@ -1,11 +1,13 @@
 <script lang="ts">
   import type {
     ActiveCollectionState,
+    Album,
     FriendStashSummary,
     LoadedSharedSource,
     PrivateSourceSummary,
     SharedOverlapCollection
   } from '$lib/types';
+  import VinylLoader from '$lib/components/VinylLoader.svelte';
 
   type Props = {
     activeState: ActiveCollectionState;
@@ -50,6 +52,77 @@
     onToggleFriendMode,
     onChangeFriendShelfSource
   }: Props = $props();
+
+  let matchingAlbumModal = $state<{
+    friendSourceId: string;
+    title: string;
+    albums: Album[];
+    loading: boolean;
+    error: string | null;
+  } | null>(null);
+
+  function closeMatchingAlbumModal() {
+    matchingAlbumModal = null;
+  }
+
+  async function openMatchingAlbumModal(friendSource: FriendStashSummary) {
+    const mineSourceId = getFriendShelfSourceId(friendSource.id);
+    matchingAlbumModal = {
+      friendSourceId: friendSource.id,
+      title: `${friendSource.name} matches`,
+      albums: [],
+      loading: true,
+      error: null
+    };
+
+    if (!mineSourceId) {
+      matchingAlbumModal = {
+        ...matchingAlbumModal,
+        loading: false,
+        error: 'Choose one of your stashes first.'
+      };
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/friends-stash/${friendSource.id}?mineSourceId=${encodeURIComponent(mineSourceId)}&include=albums`
+      );
+      const payload = (await response.json().catch(() => null)) as
+        | { albums?: Album[]; message?: string }
+        | null;
+
+      if (!response.ok || !payload?.albums) {
+        matchingAlbumModal = {
+          friendSourceId: friendSource.id,
+          title: `${friendSource.name} matches`,
+          albums: [],
+          loading: false,
+          error: payload?.message ?? 'Matching albums could not be loaded.'
+        };
+        return;
+      }
+
+      matchingAlbumModal = {
+        friendSourceId: friendSource.id,
+        title: `${friendSource.name} matches`,
+        albums: [...payload.albums].sort((a, b) =>
+          a.artist.localeCompare(b.artist, undefined, { sensitivity: 'base' }) ||
+          a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
+        ),
+        loading: false,
+        error: null
+      };
+    } catch {
+      matchingAlbumModal = {
+        friendSourceId: friendSource.id,
+        title: `${friendSource.name} matches`,
+        albums: [],
+        loading: false,
+        error: 'Matching albums could not be loaded.'
+      };
+    }
+  }
 </script>
 
 <div class="crate-feed loaded-crate-feed">
@@ -184,6 +257,16 @@
             <div class="friend-stash-compare-head">
               <span class="friend-stash-compare-title">Matching Albums</span>
               <button
+                class="friend-matching-view-link"
+                type="button"
+                disabled={!getFriendShelfSourceId(friendSource.id)}
+                onclick={() => {
+                  void openMatchingAlbumModal(friendSource);
+                }}
+              >
+                View
+              </button>
+              <button
                 class:friend-stash-shelf-toggle-active={getFriendLoadMode(friendSource.id) === 'matching'}
                 class="friend-stash-shelf-toggle"
                 type="button"
@@ -232,6 +315,54 @@
     {/each}
   {/if}
 </div>
+
+{#if matchingAlbumModal}
+  <div class="modal-backdrop matching-album-backdrop" onclick={closeMatchingAlbumModal}>
+    <div
+      class="matching-album-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="matching-album-modal-title"
+      tabindex="-1"
+      onclick={(event) => event.stopPropagation()}
+    >
+      <div class="matching-album-modal-head">
+        <div>
+          <span>Matching Albums</span>
+          <h3 id="matching-album-modal-title">{matchingAlbumModal.title}</h3>
+        </div>
+        <button class="text-button" type="button" onclick={closeMatchingAlbumModal}>Close</button>
+      </div>
+
+      <div class="matching-album-scroll">
+        {#if matchingAlbumModal.loading}
+          <p class="status-note matching-album-status">Loading matching albums...</p>
+        {:else if matchingAlbumModal.error}
+          <p class="status-note matching-album-status">{matchingAlbumModal.error}</p>
+        {:else if matchingAlbumModal.albums.length === 0}
+          <p class="status-note matching-album-status">No matching albums found.</p>
+        {:else}
+          {#each matchingAlbumModal.albums as album, index}
+            <article class="matching-album-item">
+              <span class="matching-album-index">{index + 1}</span>
+              <div class="matching-album-art">
+                {#if album.coverImageUrl}
+                  <img src={album.coverImageUrl} alt={`Cover art for ${album.title}`} loading="lazy" />
+                {:else}
+                  <VinylLoader size={54} animated={false} />
+                {/if}
+              </div>
+              <div class="matching-album-copy">
+                <strong>{album.title}</strong>
+                <span>{album.artist}</span>
+              </div>
+            </article>
+          {/each}
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .crate-feed {
@@ -526,6 +657,29 @@
     gap: 12px;
   }
 
+  .friend-matching-view-link {
+    padding: 4px 8px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(120, 36, 25, 0.12);
+    color: rgba(120, 36, 25, 0.92);
+    font-family: var(--font-display);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .friend-matching-view-link:hover:not(:disabled),
+  .friend-matching-view-link:focus-visible:not(:disabled) {
+    transform: translateY(-1px);
+    background: rgba(120, 36, 25, 0.18);
+  }
+
+  .friend-matching-view-link:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+  }
+
   .friend-stash-compare-title,
   .friend-stash-compare label {
     color: rgba(120, 36, 25, 0.82);
@@ -607,6 +761,144 @@
 
   .friend-stash-shelf-toggle-active .friend-stash-shelf-toggle-thumb {
     transform: translateX(20px);
+  }
+
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(10, 4, 2, 0.62);
+    backdrop-filter: blur(6px);
+  }
+
+  .matching-album-modal {
+    width: min(100%, 620px);
+    max-height: min(82dvh, 720px);
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 16px;
+    padding: 20px;
+    border-radius: 22px;
+    background:
+      linear-gradient(180deg, rgba(255, 236, 198, 0.08), rgba(31, 14, 8, 0.26)),
+      linear-gradient(180deg, #3a2013 0%, #21120c 100%);
+    border: 1px solid rgba(255, 225, 176, 0.14);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 238, 200, 0.08),
+      0 24px 54px rgba(0, 0, 0, 0.34);
+  }
+
+  .matching-album-modal-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .matching-album-modal-head span {
+    color: #f0d7a2;
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .matching-album-modal-head h3 {
+    margin: 4px 0 0;
+    color: #f7ead0;
+    font-family: var(--font-display);
+    font-size: clamp(1.28rem, 3vw, 1.8rem);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .matching-album-scroll {
+    display: grid;
+    gap: 10px;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
+  .matching-album-item {
+    display: grid;
+    grid-template-columns: 18px 78px minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+    padding: 13px 14px;
+    border-radius: 12px;
+    color: var(--color-paper);
+    background:
+      linear-gradient(180deg, rgba(255, 237, 205, 0.1), rgba(47, 22, 12, 0.24));
+    border: 1px solid rgba(255, 228, 177, 0.12);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 241, 218, 0.06),
+      0 4px 10px rgba(10, 4, 2, 0.08);
+  }
+
+  .matching-album-index {
+    color: rgba(241, 215, 157, 0.44);
+    font-family: var(--font-display);
+    font-size: 0.86rem;
+    letter-spacing: 0.08em;
+    text-align: center;
+  }
+
+  .matching-album-art {
+    width: 78px;
+    height: 78px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    overflow: hidden;
+    background:
+      linear-gradient(180deg, rgba(255, 240, 207, 0.06), rgba(29, 13, 8, 0.34));
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 228, 177, 0.08),
+      0 4px 10px rgba(8, 3, 2, 0.12);
+  }
+
+  .matching-album-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .matching-album-copy {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .matching-album-copy strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #f7ead0;
+    font-family: var(--font-ui);
+    font-size: 1.18rem;
+    line-height: 1.12;
+  }
+
+  .matching-album-copy span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #c8b08a;
+    font-size: 0.98rem;
+    line-height: 1.08;
+  }
+
+  .matching-album-status {
+    margin: 0;
+    padding: 12px 14px;
+    border-radius: 12px;
+    color: #f1ddba;
+    background: rgba(255, 236, 198, 0.08);
+    border-left: 3px solid rgba(243, 226, 188, 0.56);
   }
 
   @media (max-width: 860px) {
@@ -703,6 +995,31 @@
 
     .friend-stash-compare select {
       padding: 10px 12px;
+      font-size: 0.84rem;
+    }
+
+    .matching-album-modal {
+      max-height: calc(100dvh - 24px);
+      padding: 14px;
+      border-radius: 18px;
+    }
+
+    .matching-album-item {
+      grid-template-columns: 16px 58px minmax(0, 1fr);
+      gap: 10px;
+      padding: 10px;
+    }
+
+    .matching-album-art {
+      width: 58px;
+      height: 58px;
+    }
+
+    .matching-album-copy strong {
+      font-size: 0.98rem;
+    }
+
+    .matching-album-copy span {
       font-size: 0.84rem;
     }
   }

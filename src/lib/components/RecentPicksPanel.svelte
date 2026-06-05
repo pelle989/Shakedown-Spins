@@ -68,7 +68,6 @@
     gap: 18px;
     min-height: 0;
     background:
-      radial-gradient(240% 100% at 50% 0%, rgba(255, 255, 255, 0.38), transparent 22%),
       linear-gradient(180deg, rgba(64, 36, 20, 0.84), rgba(26, 14, 8, 0.96)),
       #20110a;
     border: 1px solid rgba(255, 225, 176, 0.1);
@@ -123,6 +122,21 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 241, 218, 0.06),
       0 4px 10px rgba(10, 4, 2, 0.08);
+    transition:
+      transform 160ms ease,
+      background 160ms ease,
+      border-color 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  .history-item:hover {
+    transform: translateY(-1px);
+    background:
+      linear-gradient(180deg, rgba(255, 237, 205, 0.16), rgba(71, 31, 14, 0.34));
+    border-color: rgba(255, 228, 177, 0.2);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 241, 218, 0.08),
+      0 8px 16px rgba(10, 4, 2, 0.16);
   }
 
   .history-item span {

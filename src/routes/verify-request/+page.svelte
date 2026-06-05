@@ -38,7 +38,7 @@
       linear-gradient(90deg, rgba(71, 31, 14, 0.16), rgba(120, 60, 27, 0.08) 16%, rgba(66, 29, 15, 0.14) 33%, rgba(116, 56, 26, 0.08) 52%, rgba(68, 31, 16, 0.14) 72%, rgba(112, 53, 24, 0.08) 100%),
       linear-gradient(180deg, #7b311b 0%, #6a2917 24%, #5b2415 48%, #4a1d12 72%, #38160e 100%);
     color: #f7ead0;
-    font-family: Georgia, serif;
+    font-family: "Satoshi", "Avenir Next", "Helvetica Neue", sans-serif;
   }
 
   .verify-page {
@@ -66,16 +66,17 @@
 
   .verify-kicker {
     color: rgba(252, 137, 95, 0.9);
-    font-family: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
-    font-size: 3.86em;
-    letter-spacing: 0.22em;
+    font-family: "Satoshi", "Avenir Next", "Helvetica Neue", sans-serif;
+    font-size: 1.05em;
+    font-weight: 700;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
   }
 
   h1 {
     margin: 0;
-    font-family: Arial, sans-serif;
-    font-size: clamp(2.2rem, 5vw, 3rem);
+    font-family: "Satoshi", "Avenir Next", "Helvetica Neue", sans-serif;
+    font-size: clamp(1.1rem, 2.5vw, 1.5rem);
     line-height: 1;
     color: #fff1d2;
   }
@@ -111,7 +112,7 @@
       linear-gradient(180deg, #f3dfab 0%, #e7c882 100%);
     border: 2px solid rgb(253 137 95);
     color: #7f1f1f;
-    font-family: Arial, sans-serif;
+    font-family: "Satoshi", "Avenir Next", "Helvetica Neue", sans-serif;
     font-size: 0.9rem;
     font-weight: 700;
     line-height: 1;
@@ -130,11 +131,6 @@
 
   .verify-link:hover,
   .verify-link:focus-visible {
-    font-family: Arial, sans-serif;
-    font-size: 0.9rem;
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: 0.06em;
     transform: none;
     background:
       linear-gradient(180deg, #f6e5b8 0%, #ebcf8c 100%);
@@ -142,5 +138,16 @@
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.34),
       0 12px 22px rgba(38, 15, 7, 0.2);
+  }
+
+  @media (max-width: 600px) {
+    .verify-kicker {
+      font-size: 0.6em;
+      letter-spacing: 0.08em;
+    }
+
+    h1 {
+      font-size: clamp(0.98rem, 4.5vw, 1.26rem);
+    }
   }
 </style>

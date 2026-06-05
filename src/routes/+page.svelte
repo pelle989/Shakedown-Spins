@@ -113,6 +113,7 @@
   let profileDisplayName = $state('');
   let profileHandle = $state('');
   let profileSaving = $state(false);
+  let profileSetupRequired = $state(false);
   let profileError = $state<string | null>(null);
   let profileSuccess = $state<string | null>(null);
   let friendOverlapSourceId = $state('');
@@ -121,10 +122,12 @@
   let friendMatchingCountByKey = $state<Record<string, number>>({});
   let friendMatchingCountLoadingKey = $state<string | null>(null);
   let artworkTouchStartX = $state<number | null>(null);
-  let sendingShareId = $state<string | null>(null);
   let deletingFriendSourceId = $state<string | null>(null);
   let editingSourceId = $state<string | null>(null);
   let editingSourceName = $state('');
+  let sharingSourceId = $state<string | null>(null);
+  let shareModalError = $state<string | null>(null);
+  let shareModalSuccess = $state<string | null>(null);
   let deleteSourceConfirm = $state<{ id: string; name: string } | null>(null);
   let deleteFriendConfirm = $state<{ id: string; name: string } | null>(null);
   let replacingCsvSourceId = $state<string | null>(null);
@@ -155,6 +158,7 @@
   let sharedLinkArrivalInterval: number | null = null;
   let sharedLinkArrivalSeconds = $state(10);
   let pendingDirectSharedLinkArrival = $state(Boolean(page.url.searchParams.get('sharedSource')));
+  let wasSignedIn = $state(Boolean(data.session?.user));
   const albumContextCacheVersion = 'theaudiodb-first-v1';
   const stashTimestampFormatter = new Intl.DateTimeFormat('en-US', {
     month: 'short',
@@ -350,6 +354,13 @@
       (activePrivateSourceSummary?.id === editingSourceId ? activePrivateSourceSummary : null)
     );
   });
+  const sharingSourceSummary = $derived.by(() => {
+    if (!sharingSourceId) return null;
+    return (
+      mySources.find((source) => source.id === sharingSourceId) ??
+      (activePrivateSourceSummary?.id === sharingSourceId ? activePrivateSourceSummary : null)
+    );
+  });
   $effect(() => {
     stashes = data.stashes;
     mySources = data.mySources;
@@ -511,13 +522,57 @@
   });
 
   $effect(() => {
-    if (!data.session?.user && stashView === 'mine') {
+    const signedIn = Boolean(data.session?.user);
+    const signedOutAfterSession = wasSignedIn && !signedIn;
+
+    if (signedOutAfterSession) {
+      friendStashes = [];
+      friendLoadModeById = {};
+      friendShelfSourceById = {};
+      friendMatchingCountByKey = {};
+
+      if (
+        activeState.status === 'loaded' &&
+        (activeState.collection.source.kind === 'shared' ||
+          activeState.collection.source.kind === 'shared-overlap')
+      ) {
+        activeState = { status: 'idle' };
+        currentPick = null;
+        currentArtworkGalleryUrls = [];
+        currentArtworkIndex = 0;
+        displayedTitle = '';
+        displayedArtist = '';
+        restoringMessage = null;
+        filters = emptyFilters();
+        expandedFilterDial = null;
+      }
+
+      if (stashView === 'friends' || stashView === 'mine') {
+        stashView = 'available';
+      }
+
+      const nextUrl = new URL(page.url);
+      if (nextUrl.searchParams.has('sharedSource') || nextUrl.searchParams.has('mineSource')) {
+        nextUrl.searchParams.delete('sharedSource');
+        nextUrl.searchParams.delete('mineSource');
+        void goto(`${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`, {
+          replaceState: true,
+          noScroll: true,
+          keepFocus: true,
+          invalidateAll: false
+        });
+      }
+    }
+
+    if (!signedIn && stashView === 'mine') {
       stashView = 'available';
     }
-    if (!data.session?.user) {
+    if (!signedIn) {
       uploadDestination = 'public';
       sourceTab = 'csv';
     }
+
+    wasSignedIn = signedIn;
   });
 
   $effect(() => {
@@ -548,6 +603,18 @@
   $effect(() => {
     if (selectedSharedSourceId && !sharedSources.some((source) => source.id === selectedSharedSourceId)) {
       selectedSharedSourceId = '';
+    }
+  });
+
+  $effect(() => {
+    if (
+      sharingSourceId &&
+      !mySources.some((source) => source.id === sharingSourceId) &&
+      activePrivateSourceSummary?.id !== sharingSourceId
+    ) {
+      sharingSourceId = null;
+      shareModalError = null;
+      shareModalSuccess = null;
     }
   });
 
@@ -1046,6 +1113,8 @@
         welcomeSeen: true
       };
       void persistUiPreferences({ welcomeSeen: true });
+      profileSetupRequired = true;
+      openProfileModal();
     }
   }
 
@@ -1193,6 +1262,28 @@
     selectedMember = null;
     inboxError = null;
     inboxSuccess = null;
+
+    if (memberSearchTimeout) {
+      window.clearTimeout(memberSearchTimeout);
+    }
+
+    if (value.trim().length < 2) {
+      memberSearchResults = [];
+      memberSearchLoading = false;
+      memberSearchTimeout = null;
+      return;
+    }
+
+    memberSearchTimeout = window.setTimeout(() => {
+      void searchForMembers(value);
+    }, 180);
+  }
+
+  function updateShareMemberSearch(value: string) {
+    messageSearch = value;
+    selectedMember = null;
+    shareModalError = null;
+    shareModalSuccess = null;
 
     if (memberSearchTimeout) {
       window.clearTimeout(memberSearchTimeout);
@@ -1438,6 +1529,7 @@
   }
 
   function closeProfileModal() {
+    if (profileSetupRequired) return;
     profileModalOpen = false;
     profileSaving = false;
     profileError = null;
@@ -1589,6 +1681,7 @@
       profileDisplayName = payload.profile.displayName;
       profileHandle = payload.profile.handle;
       profileSuccess = 'Sharing profile updated.';
+      profileSetupRequired = false;
       void invalidate('/');
       window.setTimeout(() => {
         profileModalOpen = false;
@@ -1897,6 +1990,27 @@
     sourceManageSuccess = null;
   }
 
+  function startSharingSource(source: PrivateSourceSummary) {
+    sharingSourceId = source.id;
+    shareModalError = null;
+    shareModalSuccess = null;
+    sourceManageError = null;
+    sourceManageSuccess = null;
+    resetComposeState();
+  }
+
+  function closeShareModal() {
+    sharingSourceId = null;
+    shareModalError = null;
+    shareModalSuccess = null;
+    memberSearchLoading = false;
+    if (memberSearchTimeout) {
+      window.clearTimeout(memberSearchTimeout);
+      memberSearchTimeout = null;
+    }
+    resetComposeState();
+  }
+
   function beginReplacingCsvSource(source: PrivateSourceSummary) {
     replacingCsvSourceId = source.id;
     sourceTab = 'csv';
@@ -2025,12 +2139,39 @@
     await deleteSource(pendingDelete.id);
   }
 
+  function applySourceUpdate(updatedSource: PrivateSourceSummary) {
+    mySources = mySources.map((source) => (source.id === updatedSource.id ? updatedSource : source));
+    if (
+      activeState.status === 'loaded' &&
+      activeState.collection.source.kind === 'private' &&
+      activeState.collection.source.id === updatedSource.id
+    ) {
+      activeState = {
+        status: 'loaded',
+        collection: {
+          ...activeState.collection,
+          source: {
+            ...activeState.collection.source,
+            label: updatedSource.name
+          }
+        }
+      };
+    }
+  }
+
   async function updateSourceVisibility(
     sourceId: string,
-    visibility: 'private' | 'shared'
+    visibility: 'private' | 'shared',
+    feedbackTarget: 'source' | 'share' | 'silent' = 'source'
   ) {
-    sourceManageError = null;
-    sourceManageSuccess = null;
+    if (feedbackTarget === 'source') {
+      sourceManageError = null;
+      sourceManageSuccess = null;
+    }
+    if (feedbackTarget === 'share') {
+      shareModalError = null;
+      shareModalSuccess = null;
+    }
     savingSourceId = sourceId;
 
     try {
@@ -2047,28 +2188,24 @@
       };
 
       if (!response.ok || !payload.source) {
-        sourceManageError = payload.message ?? 'Could not update share settings.';
-        return;
+        const message = payload.message ?? 'Could not update share settings.';
+        if (feedbackTarget === 'share') {
+          shareModalError = message;
+        } else if (feedbackTarget === 'source') {
+          sourceManageError = message;
+        }
+        return null;
       }
 
-      mySources = mySources.map((source) => (source.id === sourceId ? payload.source! : source));
-      if (
-        activeState.status === 'loaded' &&
-        activeState.collection.source.kind === 'private' &&
-        activeState.collection.source.id === sourceId
-      ) {
-        activeState = {
-          status: 'loaded',
-          collection: {
-            ...activeState.collection,
-            source: {
-              ...activeState.collection.source
-            }
-          }
-        };
-      }
+      applySourceUpdate(payload.source);
+      return payload.source;
     } catch {
-      sourceManageError = 'Could not update share settings.';
+      if (feedbackTarget === 'share') {
+        shareModalError = 'Could not update share settings.';
+      } else if (feedbackTarget === 'source') {
+        sourceManageError = 'Could not update share settings.';
+      }
+      return null;
     } finally {
       savingSourceId = null;
     }
@@ -2080,18 +2217,89 @@
     return `${window.location.origin}${path}`;
   }
 
-  async function copyShareLink(sourceId: string) {
-    sourceManageError = null;
-    sourceManageSuccess = null;
-    copyingShareId = sourceId;
+  async function ensureSourceSharedFromModal(source: PrivateSourceSummary) {
+    if (source.visibility === 'shared') return source;
+    return updateSourceVisibility(source.id, 'shared', 'share');
+  }
+
+  async function copyShareLinkFromModal(source: PrivateSourceSummary) {
+    shareModalError = null;
+    shareModalSuccess = null;
+    copyingShareId = source.id;
 
     try {
-      await navigator.clipboard.writeText(buildShareUrl(sourceId));
-      sourceManageSuccess = 'Share link copied.';
+      const sharedSource = await ensureSourceSharedFromModal(source);
+      if (!sharedSource) return;
+
+      await navigator.clipboard.writeText(buildShareUrl(sharedSource.id));
+      shareModalSuccess = 'Share link copied.';
     } catch {
-      sourceManageError = 'Could not copy the share link.';
+      shareModalError = 'Could not copy the share link.';
     } finally {
       copyingShareId = null;
+    }
+  }
+
+  async function sendShareFromModal(source: PrivateSourceSummary) {
+    if (!data.session?.user) return;
+    if (!selectedMember) {
+      shareModalError = 'Select a member to send this stash to.';
+      shareModalSuccess = null;
+      return;
+    }
+
+    sendingMemberMessage = true;
+    shareModalError = null;
+    shareModalSuccess = null;
+
+    try {
+      const sharedSource = await ensureSourceSharedFromModal(source);
+      if (!sharedSource) return;
+
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          recipientId: selectedMember.id,
+          sharedSourceId: sharedSource.id,
+          body: messageDraft
+        })
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { message?: string; sentMessage?: MemberMessageSummary }
+        | null;
+
+      if (!response.ok || !payload?.sentMessage) {
+        shareModalError =
+          typeof payload?.message === 'string'
+            ? payload.message
+            : 'Could not send the shared stash.';
+        return;
+      }
+
+      shareModalSuccess = `Shared stash sent to @${selectedMember.handle}.`;
+      selectedMember = null;
+      messageSearch = '';
+      memberSearchResults = [];
+      messageDraft = '';
+      selectedSharedSourceId = '';
+      await refreshMemberMessages();
+    } catch {
+      shareModalError = 'Could not send the shared stash.';
+    } finally {
+      sendingMemberMessage = false;
+    }
+  }
+
+  async function unshareFromModal(source: PrivateSourceSummary) {
+    shareModalError = null;
+    shareModalSuccess = null;
+
+    const updatedSource = await updateSourceVisibility(source.id, 'private', 'share');
+    if (updatedSource) {
+      shareModalSuccess = 'Stash is private again.';
     }
   }
 
@@ -2214,16 +2422,6 @@
     } finally {
       loadingStashId = null;
     }
-  }
-
-  async function sendShareLink(sourceId: string) {
-    sourceManageError = null;
-    sourceManageSuccess = null;
-    sendingShareId = sourceId;
-    cancelEditingSource();
-    openInbox('compose', sourceId);
-    inboxSuccess = null;
-    sendingShareId = null;
   }
 
   async function deleteFriendStash(sourceId: string) {
@@ -2741,6 +2939,7 @@
             {formatSourceTimestamp}
             {formatSourceDateTime}
             onStartEditingSource={startEditingSource}
+            onStartSharingSource={startSharingSource}
             onLoadPrivateSource={loadPrivateSource}
             onUnloadStash={unloadStash}
           />
@@ -2890,6 +3089,7 @@
           Edit Profile
         </button>
         <form method="POST" action="/signout" class="source-signout-form">
+          <input type="hidden" name="redirectTo" value="/" />
           <button class="text-button source-signout-button" type="submit">Sign Out</button>
         </form>
         {/if}
@@ -2955,16 +3155,50 @@
         <div class="about-brand-mark" aria-hidden="true">
           <img src="/shakedown-spins.png" alt="" />
         </div>
-        <p class="profile-note">
-          A private vinyl collection and shared listening collections for randomizing, rolling, filtering, and swapping stashes with friends.
+        <p class="about-version">Version 1.1</p>
+        <p class="profile-note about-info-block">
+          A record collection randomizer. Connect your Discogs account, paste a personal token, or import a CSV — then press Random and let the app decide. Filter by genre and decade, share your stash with friends, and load only the albums you both own.
         </p>
         <div class="about-copy-block">
-          <strong>Sources</strong>
-          <p>Album notes and fact snippets may reference third-party sources including Wikipedia, TheAudioDB, and Discogs import data.</p>
+          <strong>Sources / Attribution</strong>
+          <p>Album notes and fact snippets may draw from Wikipedia, TheAudioDB, and Discogs data. All third-party content belongs to its respective owners.</p>
         </div>
         <div class="about-copy-block">
-          <strong>Contact</strong>
-          <p><a href="https://joekirchner.com/#contact" target="_blank" rel="noreferrer">joekirchner.com/#contact</a></p>
+          <strong>Links</strong>
+          <div class="about-link-grid">
+            <a class="about-link-button" href="https://joekirchner.com/#contact" target="_blank" rel="noreferrer">
+              <span class="about-link-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M4.5 6.75h15v10.5h-15z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                  <path d="m5.25 7.5 6.75 5.25 6.75-5.25" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+              Contact
+            </a>
+            <a class="about-link-button" href="https://github.com/pelle989/Shakedown-Spins" target="_blank" rel="noreferrer">
+              <span class="about-link-icon" aria-hidden="true">
+                <svg viewBox="0 0 16 16" focusable="false">
+                  <path d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38v-1.49c-2.02.37-2.54-.49-2.7-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.6 7.6 0 0 1 8 3.86c.68 0 1.36.09 1.99.27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0Z" fill="currentColor" />
+                </svg>
+              </span>
+              GitHub
+            </a>
+            <a
+              class="about-link-button"
+              href="https://github.com/pelle989/Shakedown-Spins/issues/new?labels=bug&amp;title=Bug%3A%20"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <span class="about-link-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M8 8.5 5.8 6.3M16 8.5l2.2-2.2M12 6.8V3.9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                  <rect x="6.5" y="7.5" width="11" height="12" rx="5.2" fill="none" stroke="currentColor" stroke-width="1.7" />
+                  <path d="M8.2 12h7.6M8.2 15.2h7.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                </svg>
+              </span>
+              Report Bug
+            </a>
+          </div>
         </div>
         <p class="status-note about-legal-note">© 2026 Joe Kirchner. All rights reserved.</p>
       </div>
@@ -2983,12 +3217,22 @@
     >
       <div class="auth-modal-head">
         <h3 id="profile-modal-title">Edit Profile</h3>
-        <button class="text-button" type="button" onclick={closeProfileModal}>
+        <button
+          class="text-button"
+          type="button"
+          disabled={profileSetupRequired}
+          title={profileSetupRequired ? 'Save Profile to continue.' : undefined}
+          onclick={closeProfileModal}
+        >
           Close
         </button>
       </div>
       <form class="auth-sign-in auth-form profile-form" onsubmit={saveProfileSettings}>
-        <p class="profile-note">This is the identity shown when you share a collection.</p>
+        <p class="profile-note">
+          {profileSetupRequired
+            ? 'Save your profile once so sharing has a real display name and handle.'
+            : 'This is the identity shown when you share a collection.'}
+        </p>
         <div class="auth-email-fields">
           <label class="auth-email-label" for="profile-public-name">Public Profile Name</label>
           <input
@@ -3064,7 +3308,7 @@
           void saveSourceRename(editingSourceSummary.id);
         }}
       >
-        <p class="profile-note">Manage the stash name, sharing, and delete controls here.</p>
+        <p class="profile-note">Manage the stash name, CSV replacement, and delete controls here.</p>
         <label class="auth-email-fields" class:field-error={!!sourceManageError}>
           <span class="auth-email-label">Rename Private Stash</span>
           <input
@@ -3106,43 +3350,157 @@
             </button>
           {/if}
         </div>
-        <div class="source-edit-share-divider" aria-hidden="true"></div>
-        <div class="share-settings-row source-edit-share-settings">
-          <button
-            class="text-button"
-            type="button"
-            disabled={savingSourceId === editingSourceSummary.id}
-            onclick={() =>
-              updateSourceVisibility(
-                editingSourceSummary.id,
-                editingSourceSummary.visibility === 'shared' ? 'private' : 'shared'
-              )}
-          >
-            {editingSourceSummary.visibility === 'shared' ? 'Unshare' : 'Share'}
-          </button>
-          {#if editingSourceSummary.visibility === 'shared'}
-            <button
-              class="text-button"
-              type="button"
-              disabled={copyingShareId === editingSourceSummary.id}
-              onclick={() => copyShareLink(editingSourceSummary.id)}
-            >
-              {copyingShareId === editingSourceSummary.id ? 'Copying...' : 'Copy Link'}
-            </button>
-            <button
-              class="text-button"
-              type="button"
-              disabled={sendingShareId === editingSourceSummary.id}
-              onclick={() => sendShareLink(editingSourceSummary.id)}
-            >
-              {sendingShareId === editingSourceSummary.id ? 'Sending...' : 'Send Stash'}
-            </button>
-          {/if}
-        </div>
-        {#if editingSourceSummary.visibility === 'shared'}
-          <p class="status-note share-link-note">{buildShareUrl(editingSourceSummary.id)}</p>
-        {/if}
       </form>
+    </div>
+  </div>
+{/if}
+
+{#if sharingSourceSummary}
+  <div
+    class="modal-backdrop"
+    role="presentation"
+    onclick={closeShareModal}
+    onkeydown={(event) => {
+      if (event.key === 'Escape') closeShareModal();
+    }}
+  >
+    <div
+      class="auth-modal share-stash-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="share-stash-modal-title"
+      tabindex="-1"
+      onclick={(event) => event.stopPropagation()}
+      onkeydown={(event) => event.stopPropagation()}
+    >
+      <div class="auth-modal-head">
+        <div>
+          <p class="share-modal-kicker">Share Stash</p>
+          <h3 id="share-stash-modal-title">{sharingSourceSummary.name}</h3>
+        </div>
+        <button class="text-button" type="button" onclick={closeShareModal}>
+          Close
+        </button>
+      </div>
+      <div class="auth-sign-in auth-form share-stash-form">
+        <div class="share-source-card">
+          <span
+            class:share-state-live={sharingSourceSummary.visibility === 'shared'}
+            class="share-state-badge"
+          >
+            {sharingSourceSummary.visibility === 'shared' ? 'Shared' : 'Private'}
+          </span>
+          <strong>{sharingSourceSummary.name}</strong>
+          <span>{sharingSourceSummary.albumCount} albums · {sharingSourceSummary.kind}</span>
+        </div>
+
+        <section class="share-modal-section" aria-labelledby="share-send-heading">
+          <div class="share-section-head">
+            <h4 id="share-send-heading">
+              <span class="share-section-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M4.5 6.75h15v10.5h-15z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                  <path d="m5.25 7.5 6.75 5.25 6.75-5.25" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+              Send to Member
+            </h4>
+          </div>
+          <label class="auth-email-fields">
+            <span class="auth-email-label">Find Member</span>
+            <input
+              class="auth-email-input"
+              type="search"
+              value={messageSearch}
+              placeholder="@handle or profile name"
+              autocomplete="off"
+              oninput={(event) => updateShareMemberSearch(event.currentTarget.value)}
+            />
+          </label>
+          {#if memberSearchLoading}
+            <p class="status-note">Searching members...</p>
+          {/if}
+          {#if selectedMember}
+            <div class="selected-member-card">
+              <span>Sending to</span>
+              <strong>{selectedMember.publicProfileName}</strong>
+              <span>@{selectedMember.handle}</span>
+            </div>
+          {:else if memberSearchResults.length > 0}
+            <div class="member-search-results share-member-results">
+              {#each memberSearchResults as member}
+                <button
+                  class="member-search-result"
+                  type="button"
+                  onclick={() => selectMember(member)}
+                >
+                  <strong>{member.publicProfileName}</strong>
+                  <span>@{member.handle} · {member.displayName}</span>
+                </button>
+              {/each}
+            </div>
+          {:else if messageSearch.trim().length >= 2 && !memberSearchLoading}
+            <p class="status-note">No members found yet.</p>
+          {/if}
+          <button
+            class="load-button share-primary-button"
+            type="button"
+            disabled={
+              sendingMemberMessage ||
+              savingSourceId === sharingSourceSummary.id ||
+              !selectedMember
+            }
+            onclick={() => void sendShareFromModal(sharingSourceSummary)}
+          >
+            {sendingMemberMessage || savingSourceId === sharingSourceSummary.id
+              ? 'Sharing...'
+              : 'Send Stash'}
+          </button>
+        </section>
+
+        <div class="share-modal-divider" aria-hidden="true"></div>
+
+        <section class="share-modal-section share-link-section" aria-labelledby="share-link-heading">
+          <div class="share-section-head">
+            <h4 id="share-link-heading">Direct Link</h4>
+          </div>
+          <p class="status-note share-link-note">
+            {sharingSourceSummary.visibility === 'shared'
+              ? buildShareUrl(sharingSourceSummary.id)
+              : 'This private stash will become shared before the link is copied.'}
+          </p>
+          <div class="share-modal-actions">
+            <button
+              class="text-button"
+              type="button"
+              disabled={
+                copyingShareId === sharingSourceSummary.id ||
+                savingSourceId === sharingSourceSummary.id
+              }
+              onclick={() => void copyShareLinkFromModal(sharingSourceSummary)}
+            >
+              {copyingShareId === sharingSourceSummary.id ? 'Copying...' : 'Copy Link'}
+            </button>
+            {#if sharingSourceSummary.visibility === 'shared'}
+              <button
+                class="text-button share-unshare-button"
+                type="button"
+                disabled={savingSourceId === sharingSourceSummary.id}
+                onclick={() => void unshareFromModal(sharingSourceSummary)}
+              >
+                {savingSourceId === sharingSourceSummary.id ? 'Updating...' : 'Unshare'}
+              </button>
+            {/if}
+          </div>
+        </section>
+
+        {#if shareModalError}
+          <p class="status-error">{shareModalError}</p>
+        {/if}
+        {#if shareModalSuccess}
+          <p class="status-success">{shareModalSuccess}</p>
+        {/if}
+      </div>
     </div>
   </div>
 {/if}
@@ -3391,26 +3749,44 @@
         <VinylLoader size={126} animated={true} />
       </div>
       <h2 class="welcome-heading" id="welcome-modal-title">Signed In &amp; Ready to Spin</h2>
-      <p class="welcome-intro">Start by loading your own collection, then press the random button.</p>
+      <p class="welcome-intro">
+        Shakedown Spins turns your record collection into a fast listening ritual.
+      </p>
 
-      <ul class="welcome-features">
-        <li>
-          <span class="welcome-feature-label">My Stash</span>
-          <span class="welcome-feature-desc">Upload a CSV or import from Discogs.</span>
-        </li>
-        <li>
-          <span class="welcome-feature-label">Randomize Roll</span>
-          <span class="welcome-feature-desc">Hit Random to let the receiver choose the next record.</span>
-        </li>
-        <li>
-          <span class="welcome-feature-label">Filters</span>
-          <span class="welcome-feature-desc">Dial the room down by genre or decade once a stash is loaded.</span>
-        </li>
-        <li>
-          <span class="welcome-feature-label">Friends</span>
-          <span class="welcome-feature-desc">Share stashes, swap links, and compare matching albums with friends.</span>
-        </li>
-      </ul>
+      <div class="welcome-guide" aria-label="How Shakedown Spins works">
+        <section class="welcome-guide-card">
+          <span>1</span>
+          <div>
+            <strong>Load a stash</strong>
+            <p>Connect Discogs, paste a personal token, or import a CSV.</p>
+          </div>
+        </section>
+        <section class="welcome-guide-card">
+          <span>2</span>
+          <div>
+            <strong>Press Random</strong>
+            <p>Let the app pick the next album. No scrolling, spreadsheet, or debate.</p>
+          </div>
+        </section>
+        <section class="welcome-guide-card">
+          <span>3</span>
+          <div>
+            <strong>Shape the room</strong>
+            <p>Filter by genre or decade when you want a narrower listening lane.</p>
+          </div>
+        </section>
+        <section class="welcome-guide-card">
+          <span>4</span>
+          <div>
+            <strong>Share with friends</strong>
+            <p>Swap collections and load only the albums you both own.</p>
+          </div>
+        </section>
+      </div>
+
+      <p class="welcome-footnote">
+        Built by two vinyl collectors who just wanted to stop overthinking what to put on.
+      </p>
 
       <button class="load-button welcome-go-button" type="button" onclick={closeWelcomeModal}>
         Enter The Room
@@ -3884,8 +4260,8 @@
   .lcd-copy {
     display: grid;
     gap: 10px;
-    min-height: 170px;
-    padding: 14px;
+    min-height: 130px;
+    padding: 4px;
     border-radius: 16px;
     background:
       linear-gradient(180deg, rgba(214, 255, 248, 0.08), transparent 14%),
@@ -3909,7 +4285,7 @@
 
   .pick-reveal {
     display: grid;
-    gap: 33px;
+    gap: 17px;
   }
 
   .loading-placeholder {
@@ -4081,8 +4457,8 @@
       inset 0 2px 0 rgba(255, 255, 255, 0.5),
       inset 0 -2px 4px rgba(46, 40, 35, 0.26),
       inset 0 0 0 1px rgba(255, 255, 255, 0.18),
-      0 0 0 4px rgba(229, 83, 58, 0.34),
-      0 0 36px rgba(229, 83, 58, 0.28),
+      0 0 0 4px rgba(229, 83, 58, 0.73),
+      0 0 36px rgba(229, 83, 58, 0.73),
       var(--shadow-panel);
   }
 
@@ -4296,13 +4672,6 @@
     border-top: 1px solid rgba(90, 58, 30, 0.14);
   }
 
-  .share-settings-row {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-
   .share-link-note {
     margin: 0;
     word-break: break-all;
@@ -4459,8 +4828,7 @@
     border-radius: 20px;
     border: 1px solid rgba(78, 47, 28, 0.72);
     cursor: pointer;
-    background:
-      radial-gradient(circle at 50% 22%, #ff8f63 0%, #e5533a 26%, #cf2f2f 56%, #9b1a1f 100%);
+    background: linear-gradient(180deg, #e5533a, #9b1a1f);
     color: #ffe6b7;
     font-family: var(--font-display);
     font-size: 2.42rem;
@@ -5153,7 +5521,7 @@
   }
 
   .about-form {
-    gap: 18px;
+    gap: 24px;
   }
 
   .about-brand-mark {
@@ -5165,16 +5533,31 @@
   .about-brand-mark img {
     width: 92px;
     height: 92px;
-    object-fit: cover;
-    border-radius: 18px;
-    box-shadow:
-      0 14px 24px rgba(19, 8, 4, 0.26),
-      0 0 0 1px rgba(255, 220, 177, 0.12);
+    object-fit: contain;
+    border-radius: 49px;
+    box-shadow: none;
+  }
+
+  .about-version {
+    margin: -8px 0 0;
+    color: #f0d7a2;
+    font-family: var(--font-display);
+    font-size: 0.74rem;
+    letter-spacing: 0.14em;
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  .about-info-block {
+    padding-top: 18px;
+    border-top: 1px solid rgba(255, 225, 176, 0.12);
   }
 
   .about-copy-block {
     display: grid;
-    gap: 8px;
+    gap: 10px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(255, 225, 176, 0.12);
   }
 
   .about-copy-block strong {
@@ -5195,6 +5578,54 @@
   .about-copy-block a {
     text-decoration: underline;
     text-underline-offset: 0.18em;
+  }
+
+  .about-link-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .about-link-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 36px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background:
+      linear-gradient(180deg, #f1dfb7 0%, #dfc28b 100%);
+    color: #3a210f !important;
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-align: center;
+    text-decoration: none !important;
+    text-transform: uppercase;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    transition: transform 140ms ease, box-shadow 140ms ease;
+  }
+
+  .about-link-icon {
+    display: inline-flex;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+  }
+
+  .about-link-icon svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .about-link-button:hover,
+  .about-link-button:focus-visible {
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.32),
+      0 8px 14px rgba(19, 8, 4, 0.18);
   }
 
   .about-legal-note {
@@ -5608,19 +6039,158 @@
     gap: 14px;
   }
 
-  .source-edit-share-settings {
-    margin-top: 2px;
-    gap: 8px;
+  .share-stash-modal {
+    width: min(100%, 620px);
+    gap: 28px;
+    padding: 24px;
   }
 
-  .source-edit-share-settings .text-button {
-    padding: 6px 10px;
-    min-height: 34px;
-    font-size: 0.76rem;
+  .share-stash-form {
+    gap: 33px;
+  }
+
+  .share-modal-kicker {
+    margin: 0 0 4px;
+    color: #f0d7a2;
+    font-family: var(--font-display);
+    font-size: 0.74rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .share-source-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 6px 10px;
+    align-items: center;
+    min-height: 86px;
+    box-sizing: border-box;
+    padding: 18px 16px 14px;
+    border-radius: 16px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.36), transparent 14%),
+      linear-gradient(180deg, #f4dfb3 0%, #ecd19b 100%);
+    border: 1px solid rgba(92, 58, 27, 0.18);
+    color: #2d1e13;
+    overflow: hidden;
+  }
+
+  .share-source-card::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto auto 50%;
+    transform: translateX(-50%);
+    width: 72px;
+    height: 9px;
+    border-radius: 0 0 10px 10px;
+    background: rgba(101, 50, 24, 0.16);
+    box-shadow: inset 0 -1px 0 rgba(72, 34, 15, 0.12);
+    pointer-events: none;
+  }
+
+  .share-source-card strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-ui);
+    color: #2d1e13;
+    font-size: 1rem;
+    line-height: 1.12;
+  }
+
+  .share-source-card span:last-child {
+    grid-column: 2;
+    color: rgba(70, 43, 22, 0.76);
+    font-size: 0.9rem;
+  }
+
+  .share-state-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 76px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(91, 50, 24, 0.1);
+    border: 1px solid rgba(109, 61, 28, 0.16);
+    color: rgba(207, 47, 47, 0.72);
+    font-family: var(--font-display);
+    font-size: 0.64rem;
     letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 
-  .source-edit-share-divider {
+  .share-state-live {
+    background: rgb(116 166 95);
+    border-color: rgba(130, 205, 102, 0.28);
+    color: rgb(255 255 255);
+  }
+
+  .share-modal-section {
+    display: grid;
+    gap: 16px;
+  }
+
+  .share-section-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: baseline;
+  }
+
+  .share-section-head h4 {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    color: #f4e2bf;
+    font-family: var(--font-display);
+    font-size: 0.9rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .share-section-icon {
+    display: inline-flex;
+    width: 38px;
+    height: 38px;
+    color: rgb(253 137 95);
+  }
+
+  .share-section-icon svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .share-member-results {
+    max-height: 150px;
+  }
+
+  .share-primary-button {
+    width: 100%;
+    justify-content: center;
+    min-height: 48px;
+  }
+
+  .share-modal-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .share-modal-actions .text-button {
+    min-height: 40px;
+  }
+
+  .share-unshare-button {
+    color: #7f1f1f;
+  }
+
+  .share-modal-divider {
     height: 1px;
     width: 100%;
     background: linear-gradient(90deg, transparent, rgba(120, 78, 42, 0.28), transparent);
@@ -5744,21 +6314,18 @@
     line-height: 1.6;
   }
 
-  .welcome-features {
+  .welcome-guide {
     display: grid;
-    gap: 8px;
+    gap: 10px;
     width: 100%;
-    margin: 0;
-    padding: 0;
-    list-style: none;
   }
 
-  .welcome-features li {
+  .welcome-guide-card {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 12px;
     align-items: start;
-    gap: 6px;
-    padding: 10px 14px 11px;
+    padding: 12px 14px;
     border-radius: 16px;
     text-align: left;
     background:
@@ -5767,19 +6334,42 @@
     border: 1px solid rgba(255, 225, 176, 0.1);
   }
 
-  .welcome-feature-label {
+  .welcome-guide-card > span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    background:
+      radial-gradient(circle at 35% 35%, rgba(135, 54, 28, 0.98) 0%, rgba(108, 39, 19, 0.98) 68%, rgba(86, 28, 13, 1) 100%);
+    color: #f7e9cb;
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+  }
+
+  .welcome-guide-card strong {
+    display: block;
     color: #f3deb1;
     font-family: var(--font-display);
     font-size: 0.84rem;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    display: block;
   }
 
-  .welcome-feature-desc {
+  .welcome-guide-card p,
+  .welcome-footnote {
+    margin: 4px 0 0;
     color: var(--color-text-muted);
-    font-size: 0.88rem;
-    line-height: 1.42;
+    font-size: 0.84rem;
+    line-height: 1.38;
+  }
+
+  .welcome-footnote {
+    max-width: 58ch;
+    margin: 0;
+    font-style: italic;
   }
 
   .welcome-go-button {
@@ -7021,6 +7611,66 @@
     .album-display {
       min-height: clamp(168px, 24svh, 208px);
     }
+
+    .welcome-modal {
+      max-height: calc(100dvh - 32px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      gap: 12px;
+      padding: 16px 16px 18px;
+    }
+
+    .welcome-vinyl {
+      width: 124px;
+      height: 124px;
+    }
+
+    .welcome-heading {
+      font-size: clamp(1.48rem, 7vw, 2rem);
+      line-height: 1.04;
+      letter-spacing: 0.04em;
+    }
+
+    .welcome-intro {
+      font-size: 0.84rem;
+      line-height: 1.42;
+    }
+
+    .welcome-guide {
+      gap: 8px;
+    }
+
+    .welcome-guide-card {
+      grid-template-columns: 28px minmax(0, 1fr);
+      gap: 10px;
+      padding: 9px 11px;
+    }
+
+    .welcome-guide-card > span {
+      width: 26px;
+      height: 26px;
+      font-size: 0.7rem;
+    }
+
+    .welcome-guide-card strong {
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+    }
+
+    .welcome-guide-card p,
+    .welcome-footnote {
+      font-size: 0.76rem;
+      line-height: 1.3;
+    }
+
+    .welcome-go-button {
+      min-height: 54px;
+      font-size: 1rem;
+    }
+
+    .about-link-grid {
+      grid-template-columns: 1fr;
+    }
   }
 
   @media (max-width: 480px) {
@@ -7133,14 +7783,55 @@
     }
 
     .lcd-copy {
-      min-height: 0;
-      padding: 12px;
-      gap: 8px;
+      min-height: 130px;
+      padding: 4px;
+      gap: 17px;
     }
 
     .lcd-main {
       min-height: 112px;
       padding: 12px 13px 10px;
+    }
+
+    .welcome-modal {
+      max-height: calc(100dvh - 20px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+
+  @media (max-width: 400px) {
+    .welcome-modal {
+      max-height: calc(100dvh - 18px);
+      overflow-y: auto;
+      gap: 29px;
+      padding: 12px 12px 14px;
+    }
+
+    .welcome-vinyl {
+      width: 72px;
+      height: 72px;
+    }
+
+    .welcome-heading {
+      font-size: clamp(1.08rem, 6vw, 1.36rem);
+      line-height: 1.02;
+      letter-spacing: 0.035em;
+    }
+
+    .welcome-intro {
+      font-size: 0.76rem;
+      line-height: 1.3;
+    }
+
+    .welcome-guide-card {
+      padding: 8px 10px;
+    }
+
+    .welcome-go-button {
+      min-height: 46px;
+      font-size: 0.88rem;
+      letter-spacing: 0.06em;
     }
   }
 </style>
