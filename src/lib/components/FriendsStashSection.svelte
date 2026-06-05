@@ -21,6 +21,7 @@
     visibleFriendStashes: FriendStashSummary[];
     mySources: PrivateSourceSummary[];
     signedIn: boolean;
+    hasUnreadSharedStashMessage: boolean;
     getFriendLoadMode: (sourceId: string) => 'full' | 'matching';
     getFriendShelfSourceId: (sourceId: string) => string;
     getFriendMatchingCount: (sourceId: string, mineSourceId: string) => number | null;
@@ -29,6 +30,7 @@
     onRequestDeleteFriendStash: (source: FriendStashSummary) => void;
     onToggleFriendMode: (sourceId: string) => void | Promise<void>;
     onChangeFriendShelfSource: (sourceId: string, mineSourceId: string) => void;
+    onOpenInbox: () => void;
   };
 
   let {
@@ -43,6 +45,7 @@
     visibleFriendStashes,
     mySources,
     signedIn,
+    hasUnreadSharedStashMessage,
     getFriendLoadMode,
     getFriendShelfSourceId,
     getFriendMatchingCount,
@@ -50,7 +53,8 @@
     onLoadFriendSource,
     onRequestDeleteFriendStash,
     onToggleFriendMode,
-    onChangeFriendShelfSource
+    onChangeFriendShelfSource,
+    onOpenInbox
   }: Props = $props();
 
   let matchingAlbumModal = $state<{
@@ -176,6 +180,19 @@
     <div class="empty-state">
       <h3>Friends Stash</h3>
       <p>Shared collections from friends will appear here.</p>
+      {#if hasUnreadSharedStashMessage}
+        <button class="friend-message-cue" type="button" onclick={onOpenInbox}>
+          <span class="friend-message-cue-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path
+                d="M4.5 6.5h15a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 16V8a1.5 1.5 0 0 1 1.5-1.5Zm0 1.5v.29L12 12.9l7.5-4.61V8h-15Zm15 8v-5.94l-7.11 4.37a.75.75 0 0 1-.78 0L4.5 10.06V16h15Z"
+                fill="currentColor"
+              />
+            </svg>
+          </span>
+          <span>New shared stash waiting in Messages.</span>
+        </button>
+      {/if}
     </div>
   {/if}
 
@@ -413,6 +430,80 @@
   .empty-state p {
     margin: 8px 0 0;
     color: rgba(241, 214, 163, 0.74);
+  }
+
+  .friend-message-cue {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 16px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    color: #fff1d2;
+    font-family: var(--font-ui);
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background:
+      linear-gradient(180deg, rgba(255, 240, 210, 0.08), rgba(102, 44, 23, 0.18)),
+      linear-gradient(180deg, rgba(255, 167, 126, 0.12), rgba(140, 50, 26, 0.18));
+    border: 1px solid rgba(229, 83, 58, 0.28);
+    cursor: pointer;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 245, 225, 0.08),
+      0 0 22px rgba(229, 83, 58, 0.22);
+    animation: friend-message-cue-pulse 1.8s ease-in-out infinite;
+  }
+
+  .friend-message-cue:hover,
+  .friend-message-cue:focus-visible {
+    border-color: rgba(253, 137, 95, 0.52);
+    color: #fff8e6;
+    outline: none;
+  }
+
+  .friend-message-cue-icon {
+    display: inline-flex;
+    width: 22px;
+    height: 22px;
+    color: rgb(253, 137, 95);
+    animation: friend-message-cue-float 1.8s ease-in-out infinite;
+  }
+
+  .friend-message-cue-icon svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  @keyframes friend-message-cue-pulse {
+    0%,
+    100% {
+      transform: translateY(0);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 245, 225, 0.08),
+        0 0 18px rgba(229, 83, 58, 0.18);
+    }
+
+    50% {
+      transform: translateY(-2px);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 245, 225, 0.12),
+        0 0 28px rgba(229, 83, 58, 0.36);
+    }
+  }
+
+  @keyframes friend-message-cue-float {
+    0%,
+    100% {
+      transform: translateY(0) rotate(-2deg);
+    }
+
+    50% {
+      transform: translateY(-2px) rotate(2deg);
+    }
   }
 
   .stash-card {

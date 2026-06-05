@@ -335,6 +335,9 @@
       friendStashes.length > 0 ||
       Boolean(data.initialSharedSource || data.initialSharedOverlap || activeSharedSourceSummary || activeSharedOverlapSummary)
   );
+  const hasUnreadSharedStashMessage = $derived(
+    memberMessages.some((message) => message.direction === 'inbox' && !message.readAt && Boolean(message.sharedSource))
+  );
   const visibleFriendStashes = $derived(friendStashes);
   const friendShelfVisible = $derived(
     !(
@@ -2921,6 +2924,9 @@
                   <path d="M5.5 18.2c.6-2.2 2.4-3.6 4.8-3.6 2.4 0 4.2 1.4 4.8 3.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
                   <path d="M13.8 18.2c.3-1.6 1.6-2.7 3.3-2.7 1.1 0 2.1.4 2.9 1.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
                 </svg>
+                {#if hasUnreadSharedStashMessage}
+                  <span class="stash-tab-notice" aria-hidden="true"></span>
+                {/if}
               </span>
               <span class="stash-tab-label">Friends Stash</span>
             </button>
@@ -2956,6 +2962,7 @@
             {visibleFriendStashes}
             {mySources}
             signedIn={Boolean(data.session?.user)}
+            {hasUnreadSharedStashMessage}
             {getFriendLoadMode}
             {getFriendShelfSourceId}
             {getFriendMatchingCount}
@@ -2964,6 +2971,7 @@
             onRequestDeleteFriendStash={requestDeleteFriendStash}
             onToggleFriendMode={toggleFriendShelfMode}
             onChangeFriendShelfSource={setFriendShelfSource}
+            onOpenInbox={() => openInbox('inbox')}
           />
         {:else if activeState.status === 'loaded' && activeStashSummary}
           <div class="crate-feed loaded-crate-feed">
@@ -3065,33 +3073,41 @@
           </span>
         </button>
         {#if data.session?.user}
-        <p class="footer-session-note">Signed in as {data.session.user.email}</p>
-        <button
-          class="text-button source-inbox-button"
-          type="button"
-          aria-label={unreadMessageCount > 0 ? `${unreadMessageCount} new messages` : 'Open message inbox'}
-          title={unreadMessageCount > 0 ? `${unreadMessageCount} new messages` : 'Message inbox'}
-          onclick={() => openInbox('inbox')}
-        >
-          <span class="message-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" focusable="false">
-              <path
-                d="M4.5 6.5h15a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 16V8a1.5 1.5 0 0 1 1.5-1.5Zm0 1.5v.29L12 12.9l7.5-4.61V8h-15Zm15 8v-5.94l-7.11 4.37a.75.75 0 0 1-.78 0L4.5 10.06V16h15Z"
-                fill="currentColor"
-              />
-            </svg>
-            {#if unreadMessageCount > 0}
-              <span class="message-icon-alert" aria-hidden="true"></span>
-            {/if}
-          </span>
-        </button>
-        <button class="text-button source-profile-button" type="button" onclick={openProfileModal}>
-          Edit Profile
-        </button>
-        <form method="POST" action="/signout" class="source-signout-form">
-          <input type="hidden" name="redirectTo" value="/" />
-          <button class="text-button source-signout-button" type="submit">Sign Out</button>
-        </form>
+          <p class="footer-session-note">Signed in as {data.session.user.email}</p>
+          <button
+            class="text-button source-inbox-button"
+            type="button"
+            aria-label={unreadMessageCount > 0 ? `${unreadMessageCount} new messages` : 'Open message inbox'}
+            title={unreadMessageCount > 0 ? `${unreadMessageCount} new messages` : 'Message inbox'}
+            onclick={() => openInbox('inbox')}
+          >
+            <span class="message-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path
+                  d="M4.5 6.5h15a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 16V8a1.5 1.5 0 0 1 1.5-1.5Zm0 1.5v.29L12 12.9l7.5-4.61V8h-15Zm15 8v-5.94l-7.11 4.37a.75.75 0 0 1-.78 0L4.5 10.06V16h15Z"
+                  fill="currentColor"
+                />
+              </svg>
+              {#if unreadMessageCount > 0}
+                <span class="message-icon-alert" aria-hidden="true"></span>
+              {/if}
+            </span>
+          </button>
+          <button class="text-button source-profile-button" type="button" onclick={openProfileModal}>
+            Edit Profile
+          </button>
+          <form method="POST" action="/signout" class="source-signout-form">
+            <input type="hidden" name="redirectTo" value="/" />
+            <button class="text-button source-signout-button" type="submit">Sign Out</button>
+          </form>
+        {:else}
+          <button
+            class="text-button source-footer-signin-button"
+            type="button"
+            onclick={() => (loginModalOpen = true)}
+          >
+            Sign In
+          </button>
         {/if}
       </div>
   </main>
@@ -4457,8 +4473,8 @@
       inset 0 2px 0 rgba(255, 255, 255, 0.5),
       inset 0 -2px 4px rgba(46, 40, 35, 0.26),
       inset 0 0 0 1px rgba(255, 255, 255, 0.18),
-      0 0 0 4px rgba(229, 83, 58, 0.73),
-      0 0 36px rgba(229, 83, 58, 0.73),
+      0 0 0 4px rgba(229, 83, 58, 0.89),
+      0 0 36px rgba(229, 83, 58, 0.89),
       var(--shadow-panel);
   }
 
@@ -4480,7 +4496,7 @@
     display: grid;
     gap: 12px;
     padding: 16px;
-    border-radius: 18px;
+    border-radius: 49px;
     background:
       linear-gradient(180deg, rgba(255, 230, 186, 0.06), transparent 10%),
       linear-gradient(180deg, #2e1a10 0%, #1a100a 100%);
@@ -4957,6 +4973,7 @@
   }
 
   .stash-tab-icon {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -4971,6 +4988,19 @@
     width: 100%;
     height: 100%;
     display: block;
+  }
+
+  .stash-tab-notice {
+    position: absolute;
+    top: -5px;
+    right: -6px;
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #ffb66f, #e5533a);
+    box-shadow:
+      0 0 0 2px rgba(28, 13, 8, 0.92),
+      0 0 12px rgba(229, 83, 58, 0.64);
   }
 
   .stash-tab-label {
@@ -5356,6 +5386,7 @@
     margin: 0;
   }
 
+  .source-footer-signin-button,
   .source-profile-button,
   .source-signout-button {
     padding-inline: 14px;
@@ -5533,9 +5564,11 @@
   .about-brand-mark img {
     width: 92px;
     height: 92px;
-    object-fit: contain;
+    object-fit: cover;
     border-radius: 49px;
-    box-shadow: none;
+    box-shadow:
+      0 14px 24px #13080442,
+      0 0 0 1px #ffdcb11f;
   }
 
   .about-version {
@@ -7437,18 +7470,23 @@
       font-size: 0.78rem;
     }
 
+    .source-footer-signin-button,
     .source-inbox-button,
     .source-profile-button,
     .source-signout-form {
       order: 2;
     }
 
+    .source-footer-signin-button {
+      height: 32px;
+    }
+
     .source-info-button {
-      order: 3;
+      order: 2;
       align-self: center;
       margin-top: 4px;
-      width: 34px;
-      height: 34px;
+      width: 32px;
+      height: 32px;
     }
 
     .message-icon {
@@ -7457,8 +7495,8 @@
     }
 
     .info-icon {
-      width: 20px;
-      height: 20px;
+      width: 24px;
+      height: 24px;
     }
   }
 
@@ -7561,10 +7599,15 @@
       font-size: 0.78rem;
     }
 
+    .source-footer-signin-button,
     .source-profile-button,
     .source-signout-button {
       padding-inline: 12px;
       font-size: 0.76rem;
+    }
+
+    .source-footer-signin-button {
+      height: 32px;
     }
 
     .source-inbox-button {
@@ -7573,8 +7616,8 @@
     }
 
     .source-info-button {
-      width: 38px;
-      height: 38px;
+      width: 32px;
+      height: 32px;
     }
 
     .message-icon {
@@ -7583,8 +7626,8 @@
     }
 
     .info-icon {
-      width: 20px;
-      height: 20px;
+      width: 24px;
+      height: 24px;
       font-size: 0.9rem;
     }
 
@@ -7730,17 +7773,24 @@
       font-size: 0.74rem;
     }
 
+    .source-footer-signin-button,
     .source-inbox-button,
     .source-profile-button,
     .source-signout-form {
       order: 2;
     }
 
+    .source-footer-signin-button,
     .source-profile-button,
     .source-signout-button {
       padding: 7px 10px;
       font-size: 0.72rem;
       letter-spacing: 0.03em;
+    }
+
+    .source-footer-signin-button {
+      order: 3;
+      height: 32px;
     }
 
     .source-signout-form {
@@ -7753,11 +7803,11 @@
     }
 
     .source-info-button {
-      order: 3;
-      flex: 0 0 100%;
+      order: 2;
+      flex: 0 0 auto;
       margin-top: 2px;
-      width: 38px;
-      height: 38px;
+      width: 32px;
+      height: 32px;
     }
 
     .message-icon {
@@ -7766,8 +7816,8 @@
     }
 
     .info-icon {
-      width: 20px;
-      height: 20px;
+      width: 24px;
+      height: 24px;
       font-size: 0.88rem;
     }
 
