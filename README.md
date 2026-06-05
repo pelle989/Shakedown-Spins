@@ -1,38 +1,67 @@
 # Shakedown Spins
 
-This product formulated from my wife and I's need to easily randomize our record collection. We store everything in Discogs (format) and really appreciated the randomizer contained in the Discogs Apple App. However, over time app authentication and bloat have disturbed this pleasure and inspired a new creation, Shakedown Spins.
+A record collection randomizer. Connect your Discogs account, paste a personal token, or import a CSV, then press Random and let the app decide.
 
-It's simple, connect in your source: 1) Discogs account, 2) copy in your personal token key, or 3) import your Discogs or personal collection CSV file.
+Shakedown Spins is built for collectors who want a faster listening ritual: load a stash, filter by genre or decade when needed, share collections with friends, and randomize through your full collection or only the albums you both own.
 
-'Load' the stash collection and press Random.
+## Features
 
-Primary Features:
-	- View last 5 selection history.
-		- Undecided on album selection, my wife and I will roll 3 times and select one.
-	- View additional cover art.
-  - View wikipedia details inside the album year.
-	- Share personal stash collections with a friend.
-		- Load only albums that both your friend and you own.
-	- Filter by Genre and Decade
+- Random selection from Street Feed, My Stash, or Friends Stash.
+- Recent pick history for quick listening context.
+- Filter by genre and decade.
+- Import from Discogs with OAuth or a personal access token.
+- Upload CSV stashes and replace an existing CSV while preserving share links.
+- Share stashes with other members through Messages.
+- Accept friend stashes and compare matching albums.
+- Load a friend's full shared collection or only the matching overlap albums.
+- View inline album notes and fact snippets from Wikipedia, with TheAudioDB as an optional fallback.
+- Load cover art from Discogs, with MusicBrainz / Cover Art Archive and iTunes fallbacks.
 
+## Live Demo
 
-## Codex Product Description
+Production: [shakedownspins.joekirchner.com](https://shakedownspins.joekirchner.com)
 
-Shakedown Spins turns a record collection into a fast listening ritual. Load a stash, press `Random`, and let the app pick the next album instead of scrolling through a spreadsheet or library view.
+## Getting Started
 
-## Current Product
+Install dependencies:
 
-- `Street Feed`: the latest 10 public CSV stashes.
-- `My Stash`: signed-in private CSV uploads and Discogs imports.
-- `Friends Stash`: accepted shared collections from other members.
-- `Messages`: internal member inbox for sending and accepting shared stashes.
-- `Matching Albums`: compare a friend's shared stash against one of your own stashes and randomize only through the albums you both have.
-- `Discogs`: personal-token connection, import, manual refresh, and reset flow.
-- `CSV Replace`: update an existing private CSV stash while preserving its identity, share state, and friend links.
-- `Album Art`: Discogs image lookup first, then MusicBrainz / Cover Art Archive, then iTunes fallback.
-- `Pop-Up Facts`: short album or artist context from Wikipedia, with source links when text is truncated.
+```bash
+npm install
+```
 
+Start the local dev server:
 
+```bash
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173).
+
+## Configuration
+
+The app runs without database-backed member features only in limited local/demo modes. For the full product, configure these environment variables:
+
+```bash
+DATABASE_URL=postgresql://...
+DATABASE_URL_UNPOOLED=postgresql://...
+AUTH_SECRET=replace-with-a-long-random-secret
+AUTH_TRUST_HOST=true
+AUTH_URL=https://your-production-domain.example
+RESEND_API_KEY=your-resend-api-key
+EMAIL_FROM="Shakedown Spins <hello@example.com>"
+DISCOGS_CONSUMER_KEY=your-discogs-consumer-key
+DISCOGS_CONSUMER_SECRET=your-discogs-consumer-secret
+THEAUDIODB_API_KEY=your-theaudiodb-key
+PHASE5_CLEANUP_TOKEN=replace-with-a-long-random-token
+CRON_SECRET=replace-with-a-long-random-token
+```
+
+Notes:
+
+- `AUTH_SECRET` is required outside development. Production will fail loudly if it is missing.
+- `DISCOGS_CONSUMER_KEY` and `DISCOGS_CONSUMER_SECRET` enable Discogs OAuth.
+- `THEAUDIODB_API_KEY` is optional. If omitted, album context falls back to Wikipedia-only behavior.
+- `PHASE5_CLEANUP_TOKEN` or `CRON_SECRET` protects the cleanup endpoint.
 
 ## CSV Format
 
@@ -50,21 +79,41 @@ Optional columns:
 - `Discogs ID`
 - `Notes`
 
-The importer is forgiving about common header variants, but `Artist` and `Title` are required.
+The importer handles common Discogs export header variants. `Artist` and `Title` are the only required fields.
 
-Example Discogs-style CSV:
+## Data Sources
 
-```csv
-Catalog#,Artist,Title,Label,Format,Rating,Released,release_id,CollectionFolder,Date Added,Collection Media Condition,Collection Sleeve Condition,Collection Notes
-R1 186569,Aretha Franklin,I Never Loved a Man the Way I Love You,"Atlantic, Rhino Records (2)","LP, Album, Reissue, Stereo",5,1967,16972656,Favorites,2026-05-01,Near Mint (NM or M-),Very Good Plus (VG+),Soul classic
-MOVLP 279,Talking Heads,Remain in Light,Music On Vinyl,"LP, Album, Reissue",4,1980,1146804,Main Room,2026-05-02,Very Good Plus (VG+),Very Good Plus (VG+),
+Album notes and fact snippets may reference Wikipedia, TheAudioDB, and Discogs data. Cover art may come from Discogs, MusicBrainz / Cover Art Archive, and iTunes. All third-party content belongs to its respective owners.
+
+## Privacy And Security
+
+- Magic-link sign-in is handled through Auth.js and Resend.
+- Discogs OAuth credentials and personal-token connections are stored server-side for signed-in users.
+- Local browser storage is used only for UI preferences such as selected friend stash compare mode.
+- Secrets and database URLs must be configured through environment variables, not committed to source.
+- User uploads are parsed as CSV text and are not executed.
+
+## Known Limitations
+
+- Street Feed is intentionally capped to the latest public stashes.
+- Friend stashes appear after the recipient accepts the shared stash message.
+- Matching albums depend on normalized artist and title metadata.
+- Discogs imports can still be affected by Discogs rate limits or upstream API availability.
+
+## Development
+
+Run checks:
+
+```bash
+npm run check
 ```
 
+Run Playwright tests:
 
+```bash
+npm run test:e2e
+```
 
-## Notes
+## License
 
-- Accepted friend stashes persist until the recipient removes them.
-- The public `Street Feed` remains capped at the latest 10 public stashes.
-
-
+[MIT](LICENSE)

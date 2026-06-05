@@ -1,9 +1,10 @@
 import type { AlbumContext, ContextBlurb } from '$lib/types';
+import { env } from '$env/dynamic/private';
 import { fetchWithTimeout } from '$lib/server/http';
 
 const WIKIPEDIA_API_BASE = 'https://en.wikipedia.org/w/api.php';
 const THEAUDIODB_API_BASE = 'https://www.theaudiodb.com/api/v1/json';
-const THEAUDIODB_API_KEY = '123';
+const THEAUDIODB_API_KEY = env.THEAUDIODB_API_KEY ?? process.env.THEAUDIODB_API_KEY ?? '';
 const USER_AGENT = 'ShakedownSpins/1.0 +https://joekirchner.com';
 
 function trimSummary(value?: string | null) {
@@ -81,6 +82,8 @@ async function theAudioDbAlbumSummary(args: {
   artist: string;
   album: string;
 }): Promise<ContextBlurb | null> {
+  if (!THEAUDIODB_API_KEY) return null;
+
   const url = new URL(`${THEAUDIODB_API_BASE}/${THEAUDIODB_API_KEY}/searchalbum.php`);
   url.searchParams.set('s', args.artist);
   url.searchParams.set('a', args.album);
@@ -112,6 +115,8 @@ async function theAudioDbAlbumSummary(args: {
 }
 
 async function theAudioDbArtistSummary(artist: string): Promise<ContextBlurb | null> {
+  if (!THEAUDIODB_API_KEY) return null;
+
   const url = new URL(`${THEAUDIODB_API_BASE}/${THEAUDIODB_API_KEY}/search.php`);
   url.searchParams.set('s', artist);
 
