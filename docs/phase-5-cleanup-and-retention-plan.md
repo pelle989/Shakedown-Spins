@@ -51,13 +51,12 @@ Source:
 
 Reason:
 - inbox messages should not live forever
-- the app already prunes recipient messages older than 30 days during inbox load
 - a database cleanup makes retention consistent even for inactive users
+- shared-stash message cards double as reusable access shortcuts
 
 Policy:
-- delete read messages older than 30 days
 - delete non-stash messages older than 30 days
-- preserve unread shared-stash invitations so inactive recipients can still accept them later
+- preserve shared-stash messages while the referenced shared source exists
 
 Source:
 - `src/lib/server/messages.ts`
@@ -137,7 +136,7 @@ Best long-term path:
 - `sessions`: delete rows where `expires < now()`
 - `verification_tokens`: delete rows where `expires < now()`
 - `rate_limit_log`: keep 24 hours
-- `member_messages`: keep 30 days
+- `member_messages`: keep shared-stash messages; delete non-stash messages after 30 days
 
 These defaults are intentionally conservative and can be adjusted later without changing the product model.
 

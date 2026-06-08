@@ -10,7 +10,7 @@
 -- - normalized handle backfill
 -- - public handle format and uniqueness guarantees
 -- - constrained server-side UI preference keys
--- - safer message cleanup that keeps unread shared-stash invitations
+-- - safer message cleanup that keeps shared-stash messages reusable
 
 update "users"
 set "handle" = null
@@ -98,10 +98,7 @@ as $$
   select 'member_messages'::text, count(*)::bigint
   from "member_messages"
   where "created_at" < p_now - p_member_message_retention
-    and (
-      "read_at" is not null
-      or "shared_source_id" is null
-    )
+    and "shared_source_id" is null
 $$;
 
 create or replace function run_phase5_cleanup(
@@ -142,10 +139,7 @@ begin
 
   delete from "member_messages"
   where "created_at" < p_now - p_member_message_retention
-    and (
-      "read_at" is not null
-      or "shared_source_id" is null
-    );
+    and "shared_source_id" is null;
   get diagnostics v_deleted = row_count;
   target := 'member_messages';
   deleted_count := v_deleted;

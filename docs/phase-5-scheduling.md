@@ -14,7 +14,7 @@ That is frequent enough for:
 - expired `sessions`
 - expired `verification_tokens`
 - old `rate_limit_log`
-- `member_messages` older than 30 days
+- non-stash `member_messages` older than 30 days
 
 ## Vercel scheduling
 

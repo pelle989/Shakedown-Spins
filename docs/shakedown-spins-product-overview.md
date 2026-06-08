@@ -430,7 +430,8 @@ Rate limit:
 
 Retention:
 
-- messages older than 30 days are removed by Phase 5 cleanup
+- non-stash messages older than 30 days are removed by Phase 5 cleanup
+- shared-stash message cards remain reusable while the shared source exists
 
 ### Shared Links
 
@@ -955,7 +956,7 @@ Cleanup targets:
 - expired sessions
 - expired verification tokens
 - rate-limit log entries older than 24 hours
-- member messages older than 30 days
+- non-stash member messages older than 30 days
 
 Manual SQL:
 
@@ -1051,7 +1052,7 @@ Do not expose every metadata field just because it exists.
 - Wikipedia is primary for pop-up facts; TheAudioDB is fallback.
 - Street Feed is capped to the latest 10 public stashes.
 - Friends Stash access persists until recipient deletes it.
-- Message retention is 30 days.
+- Non-stash message retention is 30 days; shared-stash messages remain reusable.
 - UI preferences are partly server-side for signed-in users.
 
 ## Good Future Improvements
