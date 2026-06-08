@@ -3518,7 +3518,7 @@
           <p class="status-note share-link-note">
             {sharingSourceSummary.visibility === 'shared'
               ? buildShareUrl(sharingSourceSummary.id)
-              : 'Share a link of your collection to a friend.'}
+              : 'Share a link of your collection'}
           </p>
           <div class="share-modal-actions">
             <button
