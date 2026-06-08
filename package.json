@@ -26,6 +26,7 @@
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",
     "@auth/sveltekit": "^1.11.2",
+    "@vercel/analytics": "^2.0.1",
     "drizzle-orm": "^0.45.2",
     "pg": "^8.14.1"
   }
