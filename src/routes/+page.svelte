@@ -2220,6 +2220,38 @@
     return `${window.location.origin}${path}`;
   }
 
+  async function writeTextToClipboard(text: string) {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch {
+        // Fall back for browsers that reject async clipboard writes after a share request.
+      }
+    }
+
+    if (typeof document === 'undefined') return false;
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.top = '0';
+    textarea.style.left = '0';
+    textarea.style.width = '1px';
+    textarea.style.height = '1px';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    try {
+      return document.execCommand('copy');
+    } finally {
+      textarea.remove();
+    }
+  }
+
   async function ensureSourceSharedFromModal(source: PrivateSourceSummary) {
     if (source.visibility === 'shared') return source;
     return updateSourceVisibility(source.id, 'shared', 'share');
@@ -2234,7 +2266,10 @@
       const sharedSource = await ensureSourceSharedFromModal(source);
       if (!sharedSource) return;
 
-      await navigator.clipboard.writeText(buildShareUrl(sharedSource.id));
+      const copied = await writeTextToClipboard(buildShareUrl(sharedSource.id));
+      if (!copied) {
+        throw new Error('Share link copy failed.');
+      }
       shareModalSuccess = 'Share link copied.';
     } catch {
       shareModalError = 'Could not copy the share link.';
@@ -3827,7 +3862,7 @@
     --color-border: #8b6138;
     --color-danger: #bf5a38;
     --font-display: "Satoshi", "Avenir Next", "Helvetica Neue", sans-serif;
-    --font-body: "Bitter", serif;
+    --font-body: "Satoshi", "Avenir Next", "Helvetica Neue", sans-serif;
     --font-ui: "Satoshi", "Avenir Next", "Helvetica Neue", sans-serif;
     --shadow-panel: 0 18px 30px rgba(0, 0, 0, 0.28);
   }
