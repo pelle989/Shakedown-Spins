@@ -3518,7 +3518,7 @@
           <p class="status-note share-link-note">
             {sharingSourceSummary.visibility === 'shared'
               ? buildShareUrl(sharingSourceSummary.id)
-              : 'This private stash will become shared before the link is copied.'}
+              : 'Share a link of your collection to a friend.'}
           </p>
           <div class="share-modal-actions">
             <button
