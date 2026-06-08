@@ -7,13 +7,11 @@ const DISCOGS_OAUTH_COOKIE = 'discogs_oauth_pending';
 
 class DiscogsOAuthStateError extends Error {
   stateUserId?: string;
-  stateOauthToken?: string;
 
-  constructor(message: string, args?: { stateUserId?: string; stateOauthToken?: string }) {
+  constructor(message: string, args?: { stateUserId?: string }) {
     super(message);
     this.name = 'DiscogsOAuthStateError';
     this.stateUserId = args?.stateUserId;
-    this.stateOauthToken = args?.stateOauthToken;
   }
 }
 
@@ -23,12 +21,9 @@ function logDiscogsOAuthFailure(
     userId?: string;
     origin: string;
     denied: string | null;
-    oauthToken: string | null;
-    oauthVerifier: string | null;
     hasStateCookie: boolean;
     error?: unknown;
     stateUserId?: string;
-    stateOauthToken?: string;
   }
 ) {
   console.error('[discogs-oauth:callback] failure', {
@@ -36,11 +31,8 @@ function logDiscogsOAuthFailure(
     userId: args.userId ?? null,
     origin: args.origin,
     denied: args.denied,
-    oauthTokenPresent: Boolean(args.oauthToken),
-    oauthVerifierPresent: Boolean(args.oauthVerifier),
     hasStateCookie: args.hasStateCookie,
     stateUserIdMatches: args.userId ? args.stateUserId === args.userId : null,
-    stateOauthTokenMatches: args.oauthToken ? args.stateOauthToken === args.oauthToken : null,
     error: args.error instanceof Error ? args.error.message : args.error ? String(args.error) : null
   });
 }
@@ -58,8 +50,6 @@ export const GET: RequestHandler = async ({ locals, cookies, url }) => {
     logDiscogsOAuthFailure('missing-session', {
       origin: url.origin,
       denied,
-      oauthToken,
-      oauthVerifier,
       hasStateCookie: Boolean(stateCookie)
     });
     throw redirect(303, '/?error=DiscogsAuth');
@@ -74,8 +64,6 @@ export const GET: RequestHandler = async ({ locals, cookies, url }) => {
       userId: session.user.id,
       origin: url.origin,
       denied,
-      oauthToken,
-      oauthVerifier,
       hasStateCookie: Boolean(stateCookie)
     });
     throw redirect(303, '/?error=DiscogsOAuth');
@@ -94,8 +82,7 @@ export const GET: RequestHandler = async ({ locals, cookies, url }) => {
       !state.oauthTokenSecret
     ) {
       throw new DiscogsOAuthStateError('Discogs OAuth state mismatch.', {
-        stateUserId: state.userId,
-        stateOauthToken: state.oauthToken
+        stateUserId: state.userId
       });
     }
 
@@ -122,11 +109,8 @@ export const GET: RequestHandler = async ({ locals, cookies, url }) => {
         userId: session.user.id,
         origin: url.origin,
         denied,
-        oauthToken,
-        oauthVerifier,
         hasStateCookie: Boolean(stateCookie),
         stateUserId: error.stateUserId,
-        stateOauthToken: error.stateOauthToken,
         error
       });
       throw redirect(303, '/?error=DiscogsOAuth');
@@ -136,8 +120,6 @@ export const GET: RequestHandler = async ({ locals, cookies, url }) => {
       userId: session.user.id,
       origin: url.origin,
       denied,
-      oauthToken,
-      oauthVerifier,
       hasStateCookie: Boolean(stateCookie),
       error
     });

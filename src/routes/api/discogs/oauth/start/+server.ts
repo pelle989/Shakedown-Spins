@@ -17,12 +17,6 @@ export const GET: RequestHandler = async ({ locals, cookies, url }) => {
 
   try {
     requestToken = await requestDiscogsRequestToken(callbackUrl);
-    console.info('[discogs-oauth:start] request token created', {
-      userId: session.user.id,
-      origin: url.origin,
-      callbackUrl,
-      oauthTokenSuffix: requestToken.oauthToken.slice(-6)
-    });
   } catch (error) {
     console.error('[discogs-oauth:start] request token failed', {
       userId: session.user.id,
