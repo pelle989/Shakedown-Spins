@@ -416,7 +416,7 @@ Inbox behavior:
 
 Compose behavior:
 
-- user searches by handle, public profile name, display name, or email
+- user searches by handle, public profile name, or display name
 - returned member search results should not expose email in the response shape
 - sender chooses a shared stash
 - no shared stash should be selected by default for a new compose message
@@ -720,6 +720,7 @@ sql/007_phase5_cleanup_and_retention.sql
 sql/008_phase5_ui_preferences_and_cleanup_endpoint.sql
 sql/009_phase5_discogs_source_uniqueness.sql
 sql/010_phase6_discogs_auth_modes.sql
+sql/011_phase6_public_profile_constraints.sql
 ```
 
 Important migration outcomes:
@@ -999,7 +1000,7 @@ Authentication:
 
 Member privacy:
 
-- member search can match email internally
+- member search should match public-facing profile fields only
 - member search responses should not expose email
 - public/shared UI should show handles and profile names
 
@@ -1217,4 +1218,3 @@ The application is set up correctly when:
 - album art and facts work
 - mobile layout is usable
 - `npm run check` passes
-

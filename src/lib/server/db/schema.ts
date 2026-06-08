@@ -8,6 +8,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid
 } from 'drizzle-orm/pg-core';
 
@@ -24,7 +25,16 @@ export const users = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull()
   },
-  (table) => [unique('users_email_unique').on(table.email)]
+  (table) => [
+    unique('users_email_unique').on(table.email),
+    uniqueIndex('users_handle_unique_idx')
+      .on(sql`lower(${table.handle})`)
+      .where(sql`${table.handle} is not null and length(trim(${table.handle})) > 0`),
+    check(
+      'users_handle_format_check',
+      sql`${table.handle} is null or ${table.handle} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`
+    )
+  ]
 );
 
 export const accounts = pgTable(
@@ -224,7 +234,11 @@ export const userUiPreferences = pgTable(
   },
   (table) => [
     unique('user_ui_preferences_user_key_unique').on(table.userId, table.key),
-    index('user_ui_preferences_user_updated_idx').on(table.userId, table.updatedAt)
+    index('user_ui_preferences_user_updated_idx').on(table.userId, table.updatedAt),
+    check(
+      'user_ui_preferences_key_check',
+      sql`${table.key} in ('welcome_seen', 'friend_load_modes', 'friend_shelf_sources')`
+    )
   ]
 );
 

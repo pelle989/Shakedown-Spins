@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 
 import type { SharedOwnerProfile, UserProfileSettings } from '$lib/types';
 import { authDb, schema } from '$lib/server/db/client';
@@ -64,12 +64,24 @@ export async function updateUserProfileSettings(args: {
   displayName: string;
   handle: string;
 }): Promise<UserProfileSettings | null> {
+  const handle = sanitizeHandle(args.handle);
+  const existingHandleUser = await authDb.query.users.findFirst({
+    where: and(eq(schema.users.handle, handle), ne(schema.users.id, args.userId)),
+    columns: {
+      id: true
+    }
+  });
+
+  if (existingHandleUser) {
+    throw new Error('That handle is already taken.');
+  }
+
   const [user] = await authDb
     .update(schema.users)
     .set({
       publicProfileName: args.publicProfileName,
       name: args.displayName,
-      handle: sanitizeHandle(args.handle),
+      handle,
       updatedAt: new Date()
     })
     .where(eq(schema.users.id, args.userId))

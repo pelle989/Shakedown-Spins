@@ -163,8 +163,7 @@ export async function searchMembers(args: {
       or(
         ilike(schema.users.handle, pattern),
         ilike(schema.users.publicProfileName, pattern),
-        ilike(schema.users.name, pattern),
-        ilike(schema.users.email, pattern)
+        ilike(schema.users.name, pattern)
       )
     ),
     orderBy: [asc(schema.users.handle)],

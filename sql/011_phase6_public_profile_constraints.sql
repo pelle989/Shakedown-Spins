@@ -1,22 +1,69 @@
--- Phase 5: cleanup and retention maintenance
+-- Phase 6B: public profile and retention hardening
 --
 -- Run this after:
--- 001_phase1.sql
--- 002_phase2a_auth_and_sources.sql
--- 005_phase2e_shared_source_access.sql
+-- 004_phase2d_owner_profiles.sql
 -- 006_phase2f_member_messages.sql
+-- 007_phase5_cleanup_and_retention.sql
+-- 008_phase5_ui_preferences_and_cleanup_endpoint.sql
 --
--- This script is safe to run manually in Neon SQL Editor.
--- It adds:
--- - helper indexes for global age-based cleanup
--- - a preview function
--- - a cleanup function
+-- Adds:
+-- - normalized handle backfill
+-- - public handle format and uniqueness guarantees
+-- - constrained server-side UI preference keys
+-- - safer message cleanup that keeps unread shared-stash invitations
 
-create index if not exists "rate_limit_log_created_at_idx"
-  on "rate_limit_log" using btree ("created_at");
+update "users"
+set "handle" = null
+where "handle" is not null
+  and length(trim("handle")) = 0;
 
-create index if not exists "member_messages_created_at_idx"
-  on "member_messages" using btree ("created_at");
+update "users"
+set "handle" = lower(
+  regexp_replace(
+    regexp_replace(trim("handle"), '[^a-zA-Z0-9]+', '-', 'g'),
+    '(^-+|-+$)',
+    '',
+    'g'
+  )
+)
+where "handle" is not null;
+
+update "users"
+set "handle" = null
+where "handle" is not null
+  and "handle" !~ '^[a-z0-9]+(-[a-z0-9]+)*$';
+
+with ranked_handles as (
+  select
+    "id",
+    row_number() over (partition by lower("handle") order by "created_at", "id") as handle_rank
+  from "users"
+  where "handle" is not null
+    and length(trim("handle")) > 0
+)
+update "users"
+set "handle" = null
+from ranked_handles
+where "users"."id" = ranked_handles."id"
+  and ranked_handles.handle_rank > 1;
+
+alter table "users"
+  drop constraint if exists "users_handle_format_check";
+
+alter table "users"
+  add constraint "users_handle_format_check"
+  check ("handle" is null or "handle" ~ '^[a-z0-9]+(-[a-z0-9]+)*$');
+
+create unique index if not exists "users_handle_unique_idx"
+  on "users" (lower("handle"))
+  where "handle" is not null and length(trim("handle")) > 0;
+
+alter table "user_ui_preferences"
+  drop constraint if exists "user_ui_preferences_key_check";
+
+alter table "user_ui_preferences"
+  add constraint "user_ui_preferences_key_check"
+  check ("key" in ('welcome_seen', 'friend_load_modes', 'friend_shelf_sources'));
 
 create or replace function preview_phase5_cleanup(
   p_now timestamptz default now(),
