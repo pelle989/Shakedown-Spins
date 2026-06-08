@@ -18,8 +18,8 @@ Policy:
 - delete expired rows
 
 Source:
-- [src/auth.ts](/Users/joe/Documents/Grateful-Stash/src/auth.ts)
-- [src/lib/server/db/schema.ts](/Users/joe/Documents/Grateful-Stash/src/lib/server/db/schema.ts)
+- `src/auth.ts`
+- `src/lib/server/db/schema.ts`
 
 ### 2. `verification_tokens`
 
@@ -31,8 +31,8 @@ Policy:
 - delete expired rows
 
 Source:
-- [src/auth.ts](/Users/joe/Documents/Grateful-Stash/src/auth.ts)
-- [src/lib/server/db/schema.ts](/Users/joe/Documents/Grateful-Stash/src/lib/server/db/schema.ts)
+- `src/auth.ts`
+- `src/lib/server/db/schema.ts`
 
 ### 3. `rate_limit_log`
 
@@ -45,7 +45,7 @@ Policy:
 - keep only the last 24 hours
 
 Source:
-- [sql/001_phase1.sql](/Users/joe/Documents/Grateful-Stash/sql/001_phase1.sql)
+- `sql/001_phase1.sql`
 
 ### 4. `member_messages`
 
@@ -55,11 +55,13 @@ Reason:
 - a database cleanup makes retention consistent even for inactive users
 
 Policy:
-- delete rows older than 30 days
+- delete read messages older than 30 days
+- delete non-stash messages older than 30 days
+- preserve unread shared-stash invitations so inactive recipients can still accept them later
 
 Source:
-- [src/lib/server/messages.ts](/Users/joe/Documents/Grateful-Stash/src/lib/server/messages.ts)
-- [src/lib/server/db/schema.ts](/Users/joe/Documents/Grateful-Stash/src/lib/server/db/schema.ts)
+- `src/lib/server/messages.ts`
+- `src/lib/server/db/schema.ts`
 
 ## Explicit Non-Targets
 
@@ -95,7 +97,7 @@ Future note:
 
 Phase 5 adds a Neon-safe SQL script:
 
-- [sql/007_phase5_cleanup_and_retention.sql](/Users/joe/Documents/Grateful-Stash/sql/007_phase5_cleanup_and_retention.sql)
+- `sql/007_phase5_cleanup_and_retention.sql`
 
 That script provides:
 

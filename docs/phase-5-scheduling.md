@@ -24,7 +24,7 @@ For Vercel, set:
 CRON_SECRET=replace-with-a-long-random-token
 ```
 
-Vercel Cron will send `Authorization: Bearer <CRON_SECRET>` automatically when it calls the route configured in [vercel.json](/Users/joe/Documents/Grateful-Stash/vercel.json).
+Vercel Cron will send `Authorization: Bearer <CRON_SECRET>` automatically when it calls the route configured in `vercel.json`.
 
 The current project schedule runs once per day at `06:00 UTC`:
 

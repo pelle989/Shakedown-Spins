@@ -238,11 +238,11 @@ Create a shared button family and map all current button variants into:
 
 Priority files:
 
-- `/Users/joe/Documents/Grateful-Stash/src/routes/+page.svelte`
-- `/Users/joe/Documents/Grateful-Stash/src/lib/components/MyStashSection.svelte`
-- `/Users/joe/Documents/Grateful-Stash/src/lib/components/FriendsStashSection.svelte`
-- `/Users/joe/Documents/Grateful-Stash/src/lib/components/SourcePanel.svelte`
-- `/Users/joe/Documents/Grateful-Stash/src/lib/components/MessagesModal.svelte`
+- `src/routes/+page.svelte`
+- `src/lib/components/MyStashSection.svelte`
+- `src/lib/components/FriendsStashSection.svelte`
+- `src/lib/components/SourcePanel.svelte`
+- `src/lib/components/MessagesModal.svelte`
 
 ### Task 2. Normalize Panel Headers
 Make all section headers use one shared panel-header recipe.
