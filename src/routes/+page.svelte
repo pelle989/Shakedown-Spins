@@ -102,6 +102,7 @@
   let welcomeModalOpen = $state(false);
   let expiredLinkModalOpen = $state(false);
   let aboutModalOpen = $state(false);
+  let stashHelpModalOpen = $state(false);
   let sharedLinkArrivalCue = $state<{ kicker: string; message: string } | null>(null);
   let availableStashesSection: HTMLElement | null = null;
   let highlightAvailableStashes = $state(false);
@@ -2890,7 +2891,24 @@
         class="bottom-panel crate-panel queue-section bottom-stashes"
       >
         <div class="queue-section-header">
-          <h3>Stashes</h3>
+          <div class="section-title-with-help">
+            <h3>Stashes</h3>
+            <button
+              class="stash-help-button"
+              type="button"
+              aria-label="Stashes help"
+              title="Stashes help"
+              onclick={() => (stashHelpModalOpen = true)}
+            >
+              <span class="info-icon stash-help-icon" aria-hidden="true">
+                <svg viewBox="0 0 16 16" focusable="false">
+                  <path d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Z" fill="none" stroke="currentColor" stroke-width="1.25" />
+                  <path d="M8 7.1v4.05" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
+                  <circle cx="8" cy="4.8" r=".55" fill="none" stroke="currentColor" stroke-width="1.15" />
+                </svg>
+              </span>
+            </button>
+          </div>
         </div>
 
         <div class="stash-tabs" role="tablist" aria-label="Stash views">
@@ -3252,6 +3270,74 @@
           </div>
         </div>
         <p class="status-note about-legal-note">© 2026 Joe Kirchner. All rights reserved.</p>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if stashHelpModalOpen}
+  <div class="modal-backdrop" onclick={() => (stashHelpModalOpen = false)}>
+    <div
+      class="auth-modal stash-help-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="stash-help-modal-title"
+      onclick={(event) => event.stopPropagation()}
+    >
+      <div class="auth-modal-head">
+        <h3 id="stash-help-modal-title">Stashes</h3>
+        <button class="text-button" type="button" onclick={() => (stashHelpModalOpen = false)}>
+          Close
+        </button>
+      </div>
+      <div class="auth-sign-in auth-form stash-help-form">
+        <p class="profile-note">
+          Stashes are the record shelves you can load into the randomizer. Pick a tab, choose a card, then press Load.
+        </p>
+        <div class="stash-help-list">
+          <article class="stash-help-card">
+            <span class="stash-help-card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <rect x="4.5" y="4.5" width="15" height="15" rx="3.2" fill="none" stroke="currentColor" stroke-width="1.8" />
+                <circle cx="9" cy="9" r="1.15" fill="currentColor" />
+                <circle cx="15" cy="9" r="1.15" fill="currentColor" />
+                <circle cx="12" cy="12" r="1.15" fill="currentColor" />
+                <circle cx="9" cy="15" r="1.15" fill="currentColor" />
+                <circle cx="15" cy="15" r="1.15" fill="currentColor" />
+              </svg>
+            </span>
+            <div>
+              <strong>Street Feed</strong>
+              <p>A running list of the last 10 public CSV uploads. Use it to sample public stashes without signing in.</p>
+            </div>
+          </article>
+          <article class="stash-help-card">
+            <span class="stash-help-card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M5 11.2 12 5.6l7 5.6v7.2H5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+                <path d="M9.5 18.4v-4.2h5v4.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+              </svg>
+            </span>
+            <div>
+              <strong>My Stash</strong>
+              <p>Your private collection shelf. Sign in to upload CSV files, connect Discogs, replace CSV lists, edit names, and share a stash.</p>
+            </div>
+          </article>
+          <article class="stash-help-card">
+            <span class="stash-help-card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <circle cx="9" cy="9" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8" />
+                <circle cx="15.4" cy="9.7" r="2.1" fill="none" stroke="currentColor" stroke-width="1.8" />
+                <path d="M5.5 18.2c.6-2.2 2.4-3.6 4.8-3.6 2.4 0 4.2 1.4 4.8 3.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                <path d="M13.8 18.2c.3-1.6 1.6-2.7 3.3-2.7 1.1 0 2.1.4 2.9 1.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+              </svg>
+            </span>
+            <div>
+              <strong>Friends Stash</strong>
+              <p>Shared collections you accept from Messages. Load a friend's full collection, or switch to matching albums to spin only records you both own.</p>
+            </div>
+          </article>
+        </div>
       </div>
     </div>
   </div>
@@ -5463,6 +5549,42 @@
     display: block;
   }
 
+  .section-title-with-help {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .stash-help-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    height: auto;
+    padding: 0;
+    color: rgba(240, 215, 162, 0.82);
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    appearance: none;
+    cursor: pointer;
+    font: inherit;
+    line-height: 1;
+  }
+
+  .stash-help-button:hover,
+  .stash-help-button:focus-visible {
+    color: rgb(253 137 95);
+    transform: none;
+    outline: none;
+  }
+
+  .stash-help-icon {
+    width: 18px;
+    height: 18px;
+  }
+
   .message-icon {
     position: relative;
     display: inline-flex;
@@ -6111,6 +6233,73 @@
     width: min(100%, 620px);
     gap: 28px;
     padding: 24px;
+  }
+
+  .stash-help-modal {
+    width: min(100%, 620px);
+    gap: 24px;
+  }
+
+  .stash-help-form {
+    gap: 20px;
+  }
+
+  .stash-help-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .stash-help-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    padding: 14px;
+    border-radius: 18px;
+    background:
+      linear-gradient(180deg, rgba(255, 245, 226, 0.98), rgba(255, 225, 176, 0.96));
+    border: 1px solid rgba(103, 61, 29, 0.16);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      0 10px 18px rgba(23, 10, 6, 0.1);
+    color: #2d1e13;
+  }
+
+  .stash-help-card-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #e5533a, #9b1a1f);
+    color: #fff1d2;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.24),
+      0 8px 14px rgba(77, 22, 12, 0.18);
+  }
+
+  .stash-help-card-icon svg {
+    width: 24px;
+    height: 24px;
+    display: block;
+  }
+
+  .stash-help-card strong {
+    display: block;
+    margin-bottom: 4px;
+    color: #2d1e13;
+    font-family: var(--font-display);
+    font-size: 0.86rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .stash-help-card p {
+    margin: 0;
+    color: rgba(57, 34, 17, 0.76);
+    font-size: 0.9rem;
+    line-height: 1.45;
   }
 
   .share-stash-form {

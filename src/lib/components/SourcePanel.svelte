@@ -116,7 +116,7 @@
           </div>
         {/if}
         <label class:field-error={!!stashNameError}>
-          <span>Stash Name <span class="required-indicator" aria-hidden="true">*</span></span>
+          <span>{signedIn ? 'Stash Name' : 'Public Stash Name'} <span class="required-indicator" aria-hidden="true">*</span></span>
           <input
             value={stashName}
             maxlength="100"
@@ -186,7 +186,7 @@
             {:else if signedIn && uploadDestination === 'public'}
               Add to Street Feed
             {:else}
-              Upload Stash
+              Upload to street feed
             {/if}
           </button>
           {#if pendingUpload}
