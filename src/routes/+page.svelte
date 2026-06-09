@@ -3111,17 +3111,17 @@
 
       <div class="bottom-strip-footer">
         <button
-          class="text-button source-info-button"
+          class="source-info-button"
           type="button"
           aria-label="About Shakedown Spins"
           title="About Shakedown Spins"
           onclick={() => (aboutModalOpen = true)}
         >
           <span class="info-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" focusable="false">
-              <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8" />
-              <circle cx="12" cy="8" r="1.1" fill="currentColor" />
-              <path d="M12 11v5.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            <svg viewBox="0 0 16 16" focusable="false">
+              <path d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14Z" fill="none" stroke="currentColor" stroke-width="1.25" />
+              <path d="M8 7.1v4.05" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" />
+              <circle cx="8" cy="4.8" r=".55" fill="none" stroke="currentColor" stroke-width="1.15" />
             </svg>
           </span>
         </button>
@@ -3292,7 +3292,7 @@
       </div>
       <div class="auth-sign-in auth-form stash-help-form">
         <p class="profile-note">
-          Stashes are the record shelves you can load into the randomizer. Pick a tab, choose a card, then press Load.
+          Stashes are the record collections you load into the randomizer. Pick a Stash tab (Street Feed, My Stash, Friends Stash), find a collection, then press Load.
         </p>
         <div class="stash-help-list">
           <article class="stash-help-card">
@@ -3320,7 +3320,7 @@
             </span>
             <div>
               <strong>My Stash</strong>
-              <p>Your private collection shelf. Sign in to upload CSV files, connect Discogs, replace CSV lists, edit names, and share a stash.</p>
+              <p>Your private record collection. Sign in to connect Discogs, upload CSV files, and share a stash with friends.</p>
             </div>
           </article>
           <article class="stash-help-card">
@@ -3334,7 +3334,7 @@
             </span>
             <div>
               <strong>Friends Stash</strong>
-              <p>Shared collections you accept from Messages. Load a friend's full collection, or switch to matching albums to spin only records you both own.</p>
+              <p>Shared collections you accept from Messages or Links. Load a friend's full collection, or switch to matching albums to spin only records you both own.</p>
             </div>
           </article>
         </div>
@@ -4613,6 +4613,24 @@
       inset 0 0 34px rgba(255, 118, 72, 0.14);
   }
 
+  .bottom-stashes-highlighted .stash-help-button {
+    color: rgb(253 137 95);
+    animation: stash-help-cue 900ms ease-in-out 3;
+  }
+
+  @keyframes stash-help-cue {
+    0%,
+    100% {
+      transform: scale(1);
+      filter: drop-shadow(0 0 0 rgba(253, 137, 95, 0));
+    }
+
+    45% {
+      transform: scale(1.28);
+      filter: drop-shadow(0 0 9px rgba(253, 137, 95, 0.82));
+    }
+  }
+
   .queue-section {
     display: grid;
     gap: 12px;
@@ -5527,20 +5545,26 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
-    height: 44px;
+    width: auto;
+    height: auto;
     padding: 0;
-    border-radius: 999px;
-    font-family: var(--font-display);
+    color: rgba(240, 215, 162, 0.82);
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    appearance: none;
+    cursor: pointer;
+    font: inherit;
+    line-height: 1;
   }
 
   .info-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
-    color: #3a210f;
+    width: 18px;
+    height: 18px;
+    color: currentColor;
   }
 
   .info-icon svg {
@@ -5574,7 +5598,9 @@
   }
 
   .stash-help-button:hover,
-  .stash-help-button:focus-visible {
+  .stash-help-button:focus-visible,
+  .source-info-button:hover,
+  .source-info-button:focus-visible {
     color: rgb(253 137 95);
     transform: none;
     outline: none;
@@ -7709,8 +7735,6 @@
       order: 2;
       align-self: center;
       margin-top: 4px;
-      width: 32px;
-      height: 32px;
     }
 
     .message-icon {
@@ -7718,10 +7742,6 @@
       height: 26px;
     }
 
-    .info-icon {
-      width: 24px;
-      height: 24px;
-    }
   }
 
   @media (max-width: 895px) {
@@ -7839,20 +7859,9 @@
       height: 40px;
     }
 
-    .source-info-button {
-      width: 32px;
-      height: 32px;
-    }
-
     .message-icon {
       width: 26px;
       height: 26px;
-    }
-
-    .info-icon {
-      width: 24px;
-      height: 24px;
-      font-size: 0.9rem;
     }
 
     .stash-card-top {
@@ -8030,19 +8039,11 @@
       order: 2;
       flex: 0 0 auto;
       margin-top: 2px;
-      width: 32px;
-      height: 32px;
     }
 
     .message-icon {
       width: 24px;
       height: 24px;
-    }
-
-    .info-icon {
-      width: 24px;
-      height: 24px;
-      font-size: 0.88rem;
     }
 
     .stash-card-top {
@@ -8075,6 +8076,84 @@
   }
 
   @media (max-width: 400px) {
+    .about-modal {
+      max-height: calc(100dvh - 18px);
+      overflow-y: auto;
+      gap: 14px;
+      padding: 14px 12px;
+    }
+
+    .about-modal .auth-modal-head {
+      gap: 10px;
+    }
+
+    .about-modal .auth-modal-head h3 {
+      font-size: 0.98rem;
+      letter-spacing: 0.08em;
+    }
+
+    .about-form {
+      gap: 14px;
+    }
+
+    .about-brand-mark {
+      margin-top: 0;
+    }
+
+    .about-brand-mark img {
+      width: 68px;
+      height: 68px;
+      border-radius: 36px;
+      box-shadow:
+        0 10px 16px #13080438,
+        0 0 0 1px #ffdcb11f;
+    }
+
+    .about-version {
+      margin-top: -6px;
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+    }
+
+    .about-info-block,
+    .about-copy-block {
+      padding-top: 12px;
+    }
+
+    .about-copy-block {
+      gap: 7px;
+    }
+
+    .about-copy-block strong {
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+    }
+
+    .about-copy-block p,
+    .about-copy-block a,
+    .about-info-block,
+    .about-legal-note {
+      font-size: 0.76rem;
+      line-height: 1.34;
+    }
+
+    .about-link-grid {
+      gap: 7px;
+    }
+
+    .about-link-button {
+      min-height: 30px;
+      gap: 6px;
+      padding: 2px 8px;
+      font-size: 0.66rem;
+      letter-spacing: 0.06em;
+    }
+
+    .about-link-icon {
+      width: 24px;
+      height: 24px;
+    }
+
     .welcome-modal {
       max-height: calc(100dvh - 18px);
       overflow-y: auto;
