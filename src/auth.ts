@@ -38,7 +38,7 @@ export const { handle, signIn, signOut } = SvelteKitAuth({
   }),
   session: {
     strategy: 'database',
-    maxAge: 60 * 60 * 24 * 90,
+    maxAge: 60 * 60 * 24 * 365,
     updateAge: 60 * 60 * 24
   },
   callbacks: {

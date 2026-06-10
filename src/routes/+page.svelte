@@ -1111,10 +1111,12 @@
       currentUserPreferences = {
         ...(currentUserPreferences ?? {
           welcomeSeen: false,
+          welcomeSeenAt: null,
           friendLoadModes: {},
           friendShelfSources: {}
         }),
-        welcomeSeen: true
+        welcomeSeen: true,
+        welcomeSeenAt: new Date().toISOString()
       };
       void persistUiPreferences({ welcomeSeen: true });
       profileSetupRequired = true;
@@ -3235,6 +3237,15 @@
         <div class="about-copy-block">
           <strong>Links</strong>
           <div class="about-link-grid">
+            <a class="about-link-button" href="/welcome">
+              <span class="about-link-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M4.5 12.2c1.5-3.8 4-5.7 7.5-5.7s6 1.9 7.5 5.7c-1.5 3.7-4 5.6-7.5 5.6s-6-1.9-7.5-5.6Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                  <circle cx="12" cy="12.15" r="2.4" fill="none" stroke="currentColor" stroke-width="1.7" />
+                </svg>
+              </span>
+              Welcome
+            </a>
             <a class="about-link-button" href="https://joekirchner.com/#contact" target="_blank" rel="noreferrer">
               <span class="about-link-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" focusable="false">
@@ -5798,7 +5809,7 @@
 
   .about-link-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
 

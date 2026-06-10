@@ -5,12 +5,14 @@ import { authDb, schema } from '$lib/server/db/client';
 
 const preferenceKeys = {
   welcomeSeen: 'welcome_seen',
+  welcomeSeenAt: 'welcome_seen_at',
   friendLoadModes: 'friend_load_modes',
   friendShelfSources: 'friend_shelf_sources'
 } as const;
 
 const defaultPreferences: UserUiPreferences = {
   welcomeSeen: false,
+  welcomeSeenAt: null,
   friendLoadModes: {},
   friendShelfSources: {}
 };
@@ -40,16 +42,25 @@ function parseBoolean(value: string) {
   return value === 'true';
 }
 
+function parseIsoDate(value: string) {
+  const parsedDate = new Date(value);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate.toISOString();
+}
+
 export async function getUserUiPreferences(userId: string): Promise<UserUiPreferences> {
   const rows = await authDb.query.userUiPreferences.findMany({
     where: eq(schema.userUiPreferences.userId, userId)
   });
 
   const preferences = { ...defaultPreferences };
+  let legacyWelcomeSeen = false;
 
   for (const row of rows) {
     if (row.key === preferenceKeys.welcomeSeen) {
-      preferences.welcomeSeen = parseBoolean(row.value);
+      legacyWelcomeSeen = parseBoolean(row.value);
+    } else if (row.key === preferenceKeys.welcomeSeenAt) {
+      preferences.welcomeSeenAt = parseIsoDate(row.value);
+      preferences.welcomeSeen = Boolean(preferences.welcomeSeenAt);
     } else if (row.key === preferenceKeys.friendLoadModes) {
       preferences.friendLoadModes = parseRecord(row.value, ['full', 'matching']) as Record<
         string,
@@ -60,12 +71,17 @@ export async function getUserUiPreferences(userId: string): Promise<UserUiPrefer
     }
   }
 
+  if (!preferences.welcomeSeenAt && legacyWelcomeSeen) {
+    preferences.welcomeSeen = true;
+  }
+
   return preferences;
 }
 
 export async function updateUserUiPreferences(args: {
   userId: string;
   welcomeSeen?: boolean;
+  welcomeSeenAt?: string | null;
   friendLoadModes?: Record<string, 'full' | 'matching'>;
   friendShelfSources?: Record<string, string>;
 }): Promise<UserUiPreferences> {
@@ -74,9 +90,19 @@ export async function updateUserUiPreferences(args: {
 
   if (typeof args.welcomeSeen === 'boolean') {
     updates.push({
-      key: preferenceKeys.welcomeSeen,
-      value: String(args.welcomeSeen)
+      key: preferenceKeys.welcomeSeenAt,
+      value: args.welcomeSeen ? now.toISOString() : ''
     });
+  }
+
+  if (typeof args.welcomeSeenAt === 'string') {
+    const parsedSeenAt = parseIsoDate(args.welcomeSeenAt);
+    if (parsedSeenAt) {
+      updates.push({
+        key: preferenceKeys.welcomeSeenAt,
+        value: parsedSeenAt
+      });
+    }
   }
 
   if (args.friendLoadModes) {

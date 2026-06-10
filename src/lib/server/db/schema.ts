@@ -237,7 +237,7 @@ export const userUiPreferences = pgTable(
     index('user_ui_preferences_user_updated_idx').on(table.userId, table.updatedAt),
     check(
       'user_ui_preferences_key_check',
-      sql`${table.key} in ('welcome_seen', 'friend_load_modes', 'friend_shelf_sources')`
+      sql`${table.key} in ('welcome_seen', 'welcome_seen_at', 'friend_load_modes', 'friend_shelf_sources')`
     )
   ]
 );

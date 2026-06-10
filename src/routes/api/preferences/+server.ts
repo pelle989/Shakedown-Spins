@@ -22,6 +22,7 @@ export const PATCH: RequestHandler = async ({ locals, request }) => {
   try {
     const payload = (await request.json()) as {
       welcomeSeen?: boolean;
+      welcomeSeenAt?: string | null;
       friendLoadModes?: Record<string, 'full' | 'matching'>;
       friendShelfSources?: Record<string, string>;
     };
@@ -29,6 +30,7 @@ export const PATCH: RequestHandler = async ({ locals, request }) => {
     const preferences = await updateUserUiPreferences({
       userId: session.user.id,
       welcomeSeen: payload.welcomeSeen,
+      welcomeSeenAt: payload.welcomeSeenAt,
       friendLoadModes: payload.friendLoadModes,
       friendShelfSources: payload.friendShelfSources
     });

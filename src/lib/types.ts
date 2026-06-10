@@ -96,6 +96,7 @@ export type UserProfileSettings = SharedOwnerProfile & {
 
 export type UserUiPreferences = {
   welcomeSeen: boolean;
+  welcomeSeenAt: string | null;
   friendLoadModes: Record<string, 'full' | 'matching'>;
   friendShelfSources: Record<string, string>;
 };
