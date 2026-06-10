@@ -161,6 +161,7 @@
   let pendingDirectSharedLinkArrival = $state(Boolean(page.url.searchParams.get('sharedSource')));
   let wasSignedIn = $state(Boolean(data.session?.user));
   const albumContextCacheVersion = 'theaudiodb-first-v1';
+  const anonymousWelcomeSeenKey = 'shakedown-anonymous-welcome-seen-v1';
   const stashTimestampFormatter = new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric'
@@ -1068,6 +1069,16 @@
 
   onMount(() => {
     defineRollingDice();
+    if (
+      !data.session?.user &&
+      !page.url.searchParams.get('sharedSource') &&
+      !window.localStorage.getItem(anonymousWelcomeSeenKey)
+    ) {
+      window.localStorage.setItem(anonymousWelcomeSeenKey, new Date().toISOString());
+      void goto('/welcome', { replaceState: true, noScroll: true });
+      return;
+    }
+
     if (data.session?.user && !page.url.searchParams.get('signedIn') && !currentUserPreferences?.welcomeSeen) {
       welcomeModalOpen = true;
     }
