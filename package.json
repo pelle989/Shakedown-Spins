@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "check": "svelte-kit sync && tsc --noEmit",
     "lint": "npm run check",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:unit": "playwright test --config tests/listening-unit.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

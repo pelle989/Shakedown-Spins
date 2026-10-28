@@ -12,7 +12,8 @@
   import { parseCsv } from '$lib/csv';
   import { buildFilterOptions, emptyFilters, filterAlbums } from '$lib/filters';
   import { nextPick, createRandomizerState, type RandomizerState } from '$lib/randomizer';
-  import { clearActiveStashId, loadActiveStashId, saveActiveStashId } from '$lib/session';
+  import { ListeningSession } from '$lib/listening-session';
+  import { albumKey, sourceKey, pickedKeys, type ListeningState, type ListeningSnapshot } from '$lib/listening-state';
   import type {
     ActiveCollectionState,
     Album,
@@ -35,7 +36,7 @@
     UserUiPreferences
   } from '$lib/types';
   import { goto, invalidate, invalidateAll } from '$app/navigation';
-  import { onDestroy, onMount, tick } from 'svelte';
+  import { onDestroy, onMount, tick, untrack } from 'svelte';
 
   let { data }: { data: FeedData & { session?: Session | null; authEnabled?: boolean } } = $props();
 
@@ -51,6 +52,19 @@
   let databaseAvailable = $state(Boolean(data.databaseAvailable));
   let activeState = $state<ActiveCollectionState>({ status: 'idle' });
   let loadingRestore = $state(true);
+  let listeningMounted = $state(false);
+  let listeningReady = $state(false);
+  let restoringListening = $state(false);
+  let listeningRestoreFailed = $state(false);
+  let rememberPicks = $state(true);
+  let listeningSaveError = $state<string | null>(null);
+  let listeningRestoreError = $state<string | null>(null);
+  let listeningNotice = $state<string | null>(null);
+  let listeningSession: ListeningSession | null = null;
+  let listeningOwner: string | null | undefined;
+  let hydratedCollection = '';
+  let restoreRequest = 0;
+  let appliedActiveAt = 0;
   let restoringMessage = $state<string | null>(null);
   let pendingUpload = $state(false);
   let loadingStashId = $state<string | null>(null);
@@ -445,6 +459,7 @@
 
   $effect(() => {
     const sharedSourceId = page.url.searchParams.get('sharedSource');
+    if (restoringListening || (listeningMounted && listeningOwner !== (data.session?.user?.id ?? null))) return;
 
     if (!sharedSourceId) {
       sharedLinkArrivalKey = null;
@@ -1034,60 +1049,273 @@
     customElements.define('rolling-dice', RollingDice);
   }
 
-  async function restoreSession() {
-    const savedId = loadActiveStashId();
-    if (!savedId) {
-      loadingRestore = false;
+  function listeningSnapshot(): ListeningSnapshot | null {
+    if (activeState.status !== 'loaded') return null;
+    return {
+      source: activeState.collection.source,
+      currentKey: currentPick ? albumKey(currentPick) : null,
+      recentKeys: randomizerState.recentHistory.map(albumKey),
+      filters: { genre: [...filters.genre], decade: [...filters.decade], label: [...filters.label], format: [...filters.format] }
+    };
+  }
+
+  function collectionSignature() {
+    return activeState.status === 'loaded'
+      ? JSON.stringify([sourceKey(activeState.collection.source), activeState.collection.albums.map((album) => [album.id, albumKey(album)])])
+      : '';
+  }
+
+  function hydratePlayback(snapshot: ListeningSnapshot | null) {
+    if (activeState.status !== 'loaded' || !listeningSession) return;
+    const { source, albums } = activeState.collection;
+    listeningSession.reconcileHistory(sourceKey(source), albums);
+    const byKey = new Map(albums.map((album) => [albumKey(album), album]));
+    const saved = snapshot && sourceKey(snapshot.source) === sourceKey(source) ? snapshot : null;
+    currentPick = saved?.currentKey ? byKey.get(saved.currentKey) ?? null : null;
+    const recent = (saved?.recentKeys ?? []).map((key) => byKey.get(key)).filter((album): album is Album => Boolean(album));
+    randomizerState = {
+      ...createRandomizerState(),
+      lastPickedId: currentPick?.id ?? null,
+      recentHistory: recent,
+      pickedKeys: listeningSession.state.remember ? pickedKeys(listeningSession.state.histories[sourceKey(source)]) : []
+    };
+    filters = saved?.filters ?? emptyFilters();
+    displayedTitle = currentPick?.title ?? '';
+    displayedArtist = currentPick?.artist ?? '';
+    currentArtworkGalleryUrls = [];
+    currentArtworkIndex = 0;
+    if (currentPick) void loadArt(currentPick);
+  }
+
+  async function applyListeningState(state: ListeningState) {
+    const session = listeningSession;
+    if (!session) return;
+    rememberPicks = state.remember;
+    if (state.activeAt <= appliedActiveAt && !listeningRestoreFailed) {
+      if (activeState.status === 'loaded' && state.remember) {
+        randomizerState = { ...randomizerState, pickedKeys: pickedKeys(state.histories[sourceKey(activeState.collection.source)]) };
+      }
       return;
     }
-
+    appliedActiveAt = state.activeAt;
+    if (JSON.stringify(state.active) === JSON.stringify(listeningSnapshot())) return;
+    const request = ++restoreRequest;
+    restoringListening = true;
+    listeningRestoreFailed = false;
+    listeningRestoreError = null;
     try {
-      const response = await fetch(`/api/stashes/${savedId}`);
-      if (!response.ok) {
-        clearActiveStashId();
-        restoringMessage = 'That stash moved on. Only the newest 10 stashes survive, so browse the current feed below.';
-        loadingRestore = false;
+      const urlShared = page.url.searchParams.get('sharedSource');
+      const desiredSource = state.active?.source;
+      const desiredShared = desiredSource?.kind === 'shared' ? desiredSource.id : desiredSource?.kind === 'shared-overlap' ? desiredSource.sharedSourceId : null;
+      const desiredMine = desiredSource?.kind === 'shared-overlap' ? desiredSource.mineSourceId : null;
+      if (urlShared && (urlShared !== desiredShared || page.url.searchParams.get('mineSource') !== desiredMine)) {
+        const url = new URL(page.url);
+        url.searchParams.delete('sharedSource');
+        url.searchParams.delete('mineSource');
+        await goto(`${url.pathname}${url.search}${url.hash}`, { replaceState: true, noScroll: true, keepFocus: true });
+        if (session !== listeningSession || request !== restoreRequest) return;
+      }
+      if (!state.active) {
+        activeState = { status: 'idle' };
+        resetPlaybackState();
+        hydratedCollection = '';
         return;
       }
-
-      const payload = (await response.json()) as { stash: LoadedStash };
-      activeState = {
-        status: 'loaded',
-        collection: {
-          source: { kind: 'top10', id: payload.stash.id, label: payload.stash.name },
-          albums: payload.stash.albums
+      const snapshot = state.active;
+      const source = snapshot.source;
+      if (activeState.status !== 'loaded' || sourceKey(activeState.collection.source) !== sourceKey(source)) {
+        const query = new URLSearchParams({ kind: source.kind, id: source.id });
+        if (source.kind === 'shared-overlap') {
+          query.set('sharedSourceId', source.sharedSourceId);
+          query.set('mineSourceId', source.mineSourceId);
         }
-      };
-      stashView = 'available';
-      resetPlaybackState();
+        const response = await fetch(`/api/listening-state/collection?${query}`);
+        if (session !== listeningSession || request !== restoreRequest) return;
+        if (!response.ok) {
+          activeState = { status: 'idle' };
+          resetPlaybackState();
+          if (response.status === 404 || response.status === 401) {
+            restoringMessage = 'Your remembered stash is no longer available. It may have left the feed, been deleted, or stopped being shared. Choose another stash below.';
+            session.setActive(null);
+          } else {
+            listeningRestoreFailed = true;
+            listeningRestoreError = 'Could not restore your stash. Retry when connected.';
+          }
+          return;
+        }
+        const payload = await response.json();
+        if (session !== listeningSession || request !== restoreRequest) return;
+        activeState = { status: 'loaded', collection: { source: { ...source, label: payload.collection.name }, albums: payload.collection.albums } };
+      }
+      hydratePlayback(snapshot);
+      hydratedCollection = collectionSignature();
+      stashView = source.kind === 'private' ? 'mine' : source.kind === 'top10' ? 'available' : 'friends';
+      restoringMessage = null;
     } catch {
-      restoringMessage = 'Could not restore the previous stash. Browse the current feed below.';
+      if (session === listeningSession) { listeningRestoreFailed = true; listeningRestoreError = 'Could not restore your stash. Retry when connected.'; }
     } finally {
+      if (session === listeningSession && request === restoreRequest) restoringListening = false;
+    }
+  }
+
+  async function initializeListening(userId: string | null) {
+    const switchingAccount = listeningOwner !== undefined && listeningOwner !== userId;
+    // Do not send an old account's pending state using the new account's cookies.
+    listeningSession?.dispose();
+    listeningReady = false;
+    listeningOwner = userId;
+    listeningSaveError = null;
+    listeningRestoreError = null;
+    listeningNotice = null;
+    const initializationRequest = ++restoreRequest;
+    restoringListening = switchingAccount;
+    listeningRestoreFailed = false;
+    appliedActiveAt = 0;
+    hydratedCollection = '';
+    if (switchingAccount) {
+      activeState = { status: 'idle' };
+      resetPlaybackState();
+      if (page.url.searchParams.has('sharedSource')) {
+        const url = new URL(page.url);
+        url.searchParams.delete('sharedSource');
+        url.searchParams.delete('mineSource');
+        await goto(`${url.pathname}${url.search}${url.hash}`, { replaceState: true, noScroll: true });
+        if (listeningOwner !== userId) return;
+      }
+    }
+    const session = new ListeningSession(userId, (state) => {
+      if (session !== listeningSession) return;
+      rememberPicks = state.remember;
+      if (listeningReady) void applyListeningState(state);
+    }, (message) => { if (session === listeningSession) listeningSaveError = message; });
+    listeningSession = session;
+    rememberPicks = session.state.remember;
+    // Upgrade the old public-stash bookmark without retaining private album data.
+    if (!session.state.activeAt && !switchingAccount) {
+      try {
+        const legacyId = sessionStorage.getItem('grateful-stash.active-stash-id');
+        if (legacyId) {
+          session.setActive({ source: { kind: 'top10', id: legacyId, label: 'Remembered stash' }, currentKey: null, recentKeys: [], filters: emptyFilters() });
+          sessionStorage.removeItem('grateful-stash.active-stash-id');
+        }
+      } catch { /* Storage failures are reported by the session store. */ }
+    }
+    await session.refresh();
+    if (session !== listeningSession) return;
+    if (restoreRequest !== initializationRequest) {
+      hydratePlayback(session.state.active);
+      hydratedCollection = collectionSignature();
+      listeningReady = true;
       loadingRestore = false;
+      session.setActive(listeningSnapshot());
+      return;
+    }
+    // An explicitly opened shared link takes precedence over a remembered selection.
+    if (!switchingAccount && page.url.searchParams.has('sharedSource') && activeState.status === 'loaded') {
+      hydratePlayback(session.state.active);
+      hydratedCollection = collectionSignature();
+      session.setActive(listeningSnapshot());
+      appliedActiveAt = session.state.activeAt;
+    } else {
+      await applyListeningState(session.state);
+    }
+    if (session !== listeningSession) return;
+    restoringListening = false;
+    listeningReady = true;
+    loadingRestore = false;
+  }
+
+  $effect(() => {
+    const owner = data.session?.user?.id ?? null;
+    if (listeningMounted && owner !== listeningOwner) untrack(() => { void initializeListening(owner); });
+  });
+
+  $effect(() => {
+    const signature = collectionSignature();
+    if (!listeningReady || restoringListening) return;
+    untrack(() => {
+      if (signature !== hydratedCollection) {
+        hydratedCollection = signature;
+        hydratePlayback(listeningSession?.state.active ?? null);
+      }
+    });
+  });
+
+  $effect(() => {
+    const snapshot = listeningSnapshot();
+    if (!listeningReady || restoringListening || listeningRestoreFailed || listeningOwner !== (data.session?.user?.id ?? null)) return;
+    untrack(() => listeningSession?.setActive(snapshot));
+  });
+
+  function beginListeningAction() {
+    restoreRequest++;
+    restoringListening = false;
+    listeningRestoreFailed = false;
+    listeningRestoreError = null;
+    listeningNotice = null;
+  }
+
+  function changeRememberPicks(event: Event) {
+    const checked = (event.currentTarget as HTMLInputElement).checked;
+    rememberPicks = checked;
+    listeningSession?.setRemember(checked);
+    if (checked && activeState.status === 'loaded') {
+      randomizerState = { ...randomizerState, pickedKeys: pickedKeys(listeningSession?.state.histories[sourceKey(activeState.collection.source)]) };
+    }
+  }
+
+  function resetShuffleHistory() {
+    if (activeState.status !== 'loaded') return;
+    listeningSession?.resetHistory(sourceKey(activeState.collection.source));
+    randomizerState = { ...randomizerState, pickedKeys: [], remainingIds: [] };
+    listeningNotice = 'Shuffle history reset for this stash.';
+  }
+
+  async function retryListeningSave() {
+    await listeningSession?.refresh();
+    await listeningSession?.sync(true);
+    if (listeningSession) {
+      appliedActiveAt = 0;
+      await applyListeningState(listeningSession.state);
     }
   }
 
   onMount(() => {
     defineRollingDice();
-    if (
-      !data.session?.user &&
-      !page.url.searchParams.get('sharedSource') &&
-      !window.localStorage.getItem(anonymousWelcomeSeenKey)
-    ) {
-      window.localStorage.setItem(anonymousWelcomeSeenKey, new Date().toISOString());
-      void goto('/welcome', { replaceState: true, noScroll: true });
-      return;
-    }
+    try {
+      if (!data.session?.user && !page.url.searchParams.get('sharedSource') && !window.localStorage.getItem(anonymousWelcomeSeenKey)) {
+        window.localStorage.setItem(anonymousWelcomeSeenKey, new Date().toISOString());
+        void goto('/welcome', { replaceState: true, noScroll: true });
+        return;
+      }
+    } catch { /* Listening remains usable when browser storage is restricted. */ }
 
     if (data.session?.user && !page.url.searchParams.get('signedIn') && !currentUserPreferences?.welcomeSeen) {
       welcomeModalOpen = true;
     }
 
-    if (!page.url.searchParams.get('sharedSource')) {
-      void restoreSession();
-    } else {
-      loadingRestore = false;
-    }
+    listeningMounted = true;
+    const refresh = () => { if (document.visibilityState === 'visible') void listeningSession?.refresh(); };
+    const storage = (event: StorageEvent) => {
+      if (event.key === listeningSession?.storageKey) listeningSession.receiveStorage(event.newValue);
+    };
+    const flush = () => { void listeningSession?.sync(true); };
+    window.addEventListener('focus', refresh);
+    window.addEventListener('online', refresh);
+    window.addEventListener('storage', storage);
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', refresh);
+    const interval = window.setInterval(refresh, 30000);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('online', refresh);
+      window.removeEventListener('storage', storage);
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', refresh);
+      window.clearInterval(interval);
+      const session = listeningSession;
+      if (session) void session.sync().finally(() => session.dispose());
+    };
   });
 
   onDestroy(() => {
@@ -1442,6 +1670,7 @@
   }
 
   async function loadStash(stashId: string) {
+    beginListeningAction();
     restoringMessage = null;
     loadingStashId = stashId;
     try {
@@ -1465,7 +1694,7 @@
       if (!response.ok) {
         restoringMessage =
           'That stash moved on. Only the newest 10 stashes survive, so browse the current feed below.';
-        clearActiveStashId();
+
         activeState = { status: 'idle' };
         return;
       }
@@ -1478,7 +1707,7 @@
           albums: payload.stash.albums
         }
       };
-      saveActiveStashId(payload.stash.id);
+
       stashView = 'available';
       resetPlaybackState();
       scrollToTopOnMobile();
@@ -1488,9 +1717,8 @@
   }
 
   async function unloadStash() {
-    if (activeState.status === 'loaded' && activeState.collection.source.kind === 'top10') {
-      clearActiveStashId();
-    }
+    beginListeningAction();
+
     if (
       activeState.status === 'loaded' &&
       (activeState.collection.source.kind === 'shared' ||
@@ -1937,13 +2165,15 @@
   }
 
   async function rollNext() {
-    if (activeState.status !== 'loaded') return;
+    if (activeState.status !== 'loaded' || !listeningReady || restoringListening || rollingSelection) return;
     const result = nextPick(filteredAlbums, randomizerState);
     if (!result) return;
 
     rollingSelection = true;
     randomizerState = result.state;
     currentPick = result.pick;
+    listeningNotice = null;
+    listeningSession?.recordPick(sourceKey(activeState.collection.source), activeState.collection.albums, filteredAlbums, result.pick);
     startTextShuffle(result.pick.title, result.pick.artist);
 
     if (typeof window !== 'undefined') {
@@ -2356,6 +2586,7 @@
   }
 
   async function viewFriendSharedCollection(sharedSourceId: string) {
+    beginListeningAction();
     stashView = 'friends';
     await goto(`/?sharedSource=${sharedSourceId}`, {
       invalidateAll: true,
@@ -2365,6 +2596,7 @@
   }
 
   async function viewFriendOverlap(sharedSourceId: string) {
+    beginListeningAction();
     if (!friendOverlapSourceId) return;
 
     stashView = 'friends';
@@ -2453,6 +2685,7 @@
   }
 
   async function loadFriendSource(source: FriendStashSummary) {
+    beginListeningAction();
     loadingStashId = source.id;
     await tick();
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -2530,6 +2763,7 @@
   }
 
   async function loadPrivateSource(sourceId: string) {
+    beginListeningAction();
     restoringMessage = null;
     loadingStashId = sourceId;
     try {
@@ -2867,7 +3101,7 @@
           class:random-button-idle={activeState.status === 'idle'}
           class="random-button"
           onclick={rollNext}
-          disabled={activeState.status !== 'loaded' || filteredAlbums.length === 0 || rollingSelection}
+          disabled={activeState.status !== 'loaded' || filteredAlbums.length === 0 || rollingSelection || !listeningReady || restoringListening}
         >
           <span class="random-button-content">
             {#if rollingSelection}
@@ -2878,6 +3112,21 @@
           </span>
         </button>
 
+        <aside class="panel listening-controls" aria-label="Listening preferences">
+          <label class="remember-picks-control">
+            <input type="checkbox" checked={rememberPicks} onchange={changeRememberPicks} disabled={!listeningReady} />
+            <span>Remember previous picks</span>
+          </label>
+          <p class="listening-help">Continue your shuffle across visits.</p>
+          <button class="text-button" type="button" onclick={resetShuffleHistory} disabled={activeState.status !== 'loaded' || !listeningReady || restoringListening}>Reset shuffle history</button>
+          {#if listeningNotice}<p class="listening-help" role="status">{listeningNotice}</p>{/if}
+          {#if listeningSaveError || listeningRestoreError}
+            <div class="listening-save-error" role="alert">
+              <p>{listeningRestoreError ?? listeningSaveError}</p>
+              <button class="text-button" type="button" onclick={retryListeningSave}>Retry saving</button>
+            </div>
+          {/if}
+        </aside>
         <RecentPicksPanel {databaseAvailable} {recentHistory} />
       </div>
     </section>
@@ -3969,6 +4218,13 @@
 {/if}
 
 <style>
+  .listening-controls { padding: 14px 18px; color: #dfd5bc; }
+  .remember-picks-control { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; cursor: pointer; }
+  .remember-picks-control input { accent-color: #9db777; width: 18px; height: 18px; flex-shrink: 0; }
+  .listening-help { margin: 8px 0; font-size: 0.8rem; color: #bdb298; }
+  .listening-save-error { margin-top: 10px; font-size: 0.85rem; color: #f0beaa; }
+  .listening-save-error p { margin: 0 0 8px; }
+
   :global(html) {
     color-scheme: dark;
   }

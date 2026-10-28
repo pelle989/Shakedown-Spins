@@ -1,3 +1,4 @@
+import type { Session } from '@auth/core/types';
 import type {
   Album,
   FeedData,
@@ -73,6 +74,7 @@ const fixturePreferences: UserUiPreferences = {
 export function getRootPageFixture(
   fixtureName: string
 ): (FeedData & {
+  session?: Session;
   initialSharedSource?: LoadedSharedSource | null;
   initialSharedOverlap?: SharedOverlapCollection | null;
   currentUserProfile?: UserProfileSettings | null;
@@ -80,6 +82,15 @@ export function getRootPageFixture(
   discogsConnection: null;
   databaseAvailable: boolean;
 }) | null {
+  if (fixtureName === 'listening-account' || fixtureName === 'listening-other-account') {
+    return {
+      stashes: [], mySources: [], friendStashes: [], memberMessages: [], unreadMessageCount: 0,
+      discogsConnection: null, databaseAvailable: true, currentUserProfile: fixtureProfile,
+      uiPreferences: fixturePreferences, initialSharedSource: null, initialSharedOverlap: null,
+      session: { user: { id: fixtureName === 'listening-account' ? 'fixture-listener' : 'fixture-other-listener', email: 'demo@example.com' }, expires: '2099-01-01T00:00:00.000Z' }
+    };
+  }
+
   if (fixtureName === 'shared-link') {
     return {
       stashes: [],

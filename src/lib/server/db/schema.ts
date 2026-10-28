@@ -3,6 +3,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -220,6 +221,12 @@ export const memberMessages = pgTable(
     index('member_messages_recipient_read_idx').on(table.recipientUserId, table.readAt)
   ]
 );
+
+export const listeningStates = pgTable('listening_states', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  state: jsonb('state').$type<import('../../listening-state').ListeningState>().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).defaultNow().notNull()
+});
 
 export const userUiPreferences = pgTable(
   'user_ui_preferences',

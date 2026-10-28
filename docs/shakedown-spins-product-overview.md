@@ -722,6 +722,8 @@ sql/008_phase5_ui_preferences_and_cleanup_endpoint.sql
 sql/009_phase5_discogs_source_uniqueness.sql
 sql/010_phase6_discogs_auth_modes.sql
 sql/011_phase6_public_profile_constraints.sql
+sql/012_phase6_welcome_seen_at.sql
+sql/013_listening_state.sql
 ```
 
 Important migration outcomes:

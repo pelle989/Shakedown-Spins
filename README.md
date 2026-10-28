@@ -63,6 +63,21 @@ Notes:
 - `THEAUDIODB_API_KEY` is optional. If omitted, album context falls back to Wikipedia-only behavior.
 - `PHASE5_CLEANUP_TOKEN` or `CRON_SECRET` protects the cleanup endpoint.
 
+## Listening State
+
+Apply `sql/013_listening_state.sql` to the target database before deploying this feature (after the existing migrations). It adds `listening_states`, keyed by user ID with cascading account deletion. Deployment does not apply SQL automatically.
+
+- Stash selection, current album, filters, and six recent picks restore across visits. The remembered stash is fetched again with the current access checks; deleted or unavailable stashes show an explanation.
+- “Remember previous picks” defaults to on. Signed-in listeners sync to their account; guests persist in the current browser. Turning it off stops recording new persistent picks while keeping repeat protection within the current page session. Existing saved history is retained for re-enabling.
+- Clearing the stash leaves its history intact. “Reset shuffle history” resets only that stash, leaving the current album visible.
+- The active selection and preference use the latest mutation timestamp. History merges individual album events under a database row lock so concurrent saves preserve independent picks. Reset and removal tombstones prevent stale devices from restoring erased history. Ties resolve deterministically.
+- Source kinds (including matching-album source pairs) have separate histories. Album identity uses a Discogs release ID when available, otherwise normalized artist, title, year, label, and format. Changing those identifying fields creates a new identity; import row UUID changes do not. Copies with the same identity share shuffle eligibility.
+- Exhausting a filtered pool starts a new cycle for those albums only. New albums enter the pool immediately. Removed albums are marked ineligible without reviving stale-device picks.
+- Progress saves locally immediately and syncs to the account after a short debounce, on return to the tab, and every 30 seconds while visible. Save failures leave Random usable and show a retry action. Concurrent devices may still independently choose the same album before syncing.
+- Sign-out or account switching removes private listening state from the screen. Recovery storage is scoped to the account and is never sent using a different account's session.
+
+Run focused state/merge tests with `npm run test:unit`, and browser flows with `npm run test:e2e`.
+
 ## CSV Format
 
 Required columns:
@@ -90,7 +105,7 @@ Album notes and fact snippets may reference Wikipedia, TheAudioDB, and Discogs d
 - Magic-link sign-in is handled through Auth.js and Resend.
 - Signed-in sessions can stay active for about 360 days without reauth, unless the user signs out, clears browser cookies, or the session is removed.
 - Discogs OAuth credentials and personal-token connections are stored server-side for signed-in users.
-- Local browser storage is used only for UI preferences such as selected friend stash compare mode.
+- Browser storage keeps an account-scoped recovery copy of listening state (stash reference, album keys, filters, and shuffle history). Guests use browser storage only. Full private collections and credentials are not stored there.
 - Secrets and database URLs must be configured through environment variables, not committed to source.
 - User uploads are parsed as CSV text and are not executed.
 
