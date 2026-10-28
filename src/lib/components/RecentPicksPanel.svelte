@@ -5,9 +5,11 @@
   type Props = {
     databaseAvailable: boolean;
     recentHistory: Album[];
+    onOpenListeningSettings: () => void;
+    settingsReady: boolean;
   };
 
-  let { databaseAvailable, recentHistory }: Props = $props();
+  let { databaseAvailable, recentHistory, onOpenListeningSettings, settingsReady }: Props = $props();
 </script>
 
 <aside class="panel queue-panel">
@@ -21,6 +23,22 @@
   <section class="history queue-section">
     <div class="queue-section-header">
       <h3>Recent Picks</h3>
+      <button
+        class="history-settings-button"
+        type="button"
+        aria-label="Listening settings"
+        aria-haspopup="dialog"
+        aria-controls="listening-settings"
+        title="Listening settings"
+        onclick={onOpenListeningSettings}
+        disabled={!settingsReady}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 7h16M4 17h16" />
+          <circle cx="9" cy="7" r="3" fill="#2b180e" />
+          <circle cx="15" cy="17" r="3" fill="#2b180e" />
+        </svg>
+      </button>
     </div>
     {#if recentHistory.length === 0}
       <div class="history-list history-list-skeleton" aria-hidden="true">
@@ -92,6 +110,8 @@
     min-height: 40.5px;
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 12px;
   }
 
   .queue-section-header h3 {
@@ -102,6 +122,24 @@
     letter-spacing: 0.16em;
     text-transform: uppercase;
   }
+
+  .history-settings-button {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    padding: 8px;
+    border-radius: 50%;
+    border: 1px solid rgba(245, 222, 176, 0.2);
+    color: #dbc194;
+    background: linear-gradient(180deg, rgba(255, 237, 205, 0.09), rgba(12, 5, 2, 0.2));
+    cursor: pointer;
+  }
+  .history-settings-button svg { width: 19px; height: 19px; }
+  .history-settings-button:disabled { opacity: 0.45; cursor: wait; }
+  .history-settings-button:hover:not(:disabled) { color: #fff0cd; border-color: rgba(245, 222, 176, 0.5); }
+  .history-settings-button:focus-visible { outline: 2px solid #f5deb0; outline-offset: 3px; }
 
   .history-list {
     display: grid;

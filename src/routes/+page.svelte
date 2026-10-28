@@ -57,9 +57,11 @@
   let restoringListening = $state(false);
   let listeningRestoreFailed = $state(false);
   let rememberPicks = $state(true);
+  let listeningDialog: HTMLDialogElement;
   let listeningSaveError = $state<string | null>(null);
   let listeningRestoreError = $state<string | null>(null);
-  let listeningNotice = $state<string | null>(null);
+  let shuffleResetting = $state(false);
+  let shuffleResetTimer: ReturnType<typeof setTimeout> | undefined;
   let listeningSession: ListeningSession | null = null;
   let listeningOwner: string | null | undefined;
   let hydratedCollection = '';
@@ -1166,7 +1168,7 @@
     listeningOwner = userId;
     listeningSaveError = null;
     listeningRestoreError = null;
-    listeningNotice = null;
+    clearShuffleResetAnimation();
     const initializationRequest = ++restoreRequest;
     restoringListening = switchingAccount;
     listeningRestoreFailed = false;
@@ -1252,11 +1254,11 @@
     restoringListening = false;
     listeningRestoreFailed = false;
     listeningRestoreError = null;
-    listeningNotice = null;
+    clearShuffleResetAnimation();
   }
 
-  function changeRememberPicks(event: Event) {
-    const checked = (event.currentTarget as HTMLInputElement).checked;
+  function changeRememberPicks() {
+    const checked = !rememberPicks;
     rememberPicks = checked;
     listeningSession?.setRemember(checked);
     if (checked && activeState.status === 'loaded') {
@@ -1264,11 +1266,17 @@
     }
   }
 
+  function clearShuffleResetAnimation() {
+    clearTimeout(shuffleResetTimer);
+    shuffleResetting = false;
+  }
+
   function resetShuffleHistory() {
-    if (activeState.status !== 'loaded') return;
+    if (activeState.status !== 'loaded' || shuffleResetting) return;
     listeningSession?.resetHistory(sourceKey(activeState.collection.source));
     randomizerState = { ...randomizerState, pickedKeys: [], remainingIds: [] };
-    listeningNotice = 'Shuffle history reset for this stash.';
+    shuffleResetting = true;
+    shuffleResetTimer = setTimeout(() => { shuffleResetting = false; }, 1200);
   }
 
   async function retryListeningSave() {
@@ -1319,6 +1327,7 @@
   });
 
   onDestroy(() => {
+    clearTimeout(shuffleResetTimer);
     clearShuffleTimers();
     if (highlightedSourceTimeout) {
       window.clearTimeout(highlightedSourceTimeout);
@@ -2172,7 +2181,7 @@
     rollingSelection = true;
     randomizerState = result.state;
     currentPick = result.pick;
-    listeningNotice = null;
+    clearShuffleResetAnimation();
     listeningSession?.recordPick(sourceKey(activeState.collection.source), activeState.collection.albums, filteredAlbums, result.pick);
     startTextShuffle(result.pick.title, result.pick.artist);
 
@@ -3014,6 +3023,7 @@
     const isInteractive = target
       ? ['INPUT', 'TEXTAREA', 'BUTTON', 'A', 'SELECT'].includes(target.tagName) || target.isContentEditable
       : false;
+    if (listeningDialog?.open) return;
     if (event.code === 'Space' && activeState.status === 'loaded' && !isInteractive) {
       event.preventDefault();
       void rollNext();
@@ -3112,22 +3122,13 @@
           </span>
         </button>
 
-        <aside class="panel listening-controls" aria-label="Listening preferences">
-          <label class="remember-picks-control">
-            <input type="checkbox" checked={rememberPicks} onchange={changeRememberPicks} disabled={!listeningReady} />
-            <span>Remember previous picks</span>
-          </label>
-          <p class="listening-help">Continue your shuffle across visits.</p>
-          <button class="text-button" type="button" onclick={resetShuffleHistory} disabled={activeState.status !== 'loaded' || !listeningReady || restoringListening}>Reset shuffle history</button>
-          {#if listeningNotice}<p class="listening-help" role="status">{listeningNotice}</p>{/if}
+        <RecentPicksPanel {databaseAvailable} {recentHistory} settingsReady={listeningReady} onOpenListeningSettings={() => listeningDialog.showModal()} />
           {#if listeningSaveError || listeningRestoreError}
             <div class="listening-save-error" role="alert">
               <p>{listeningRestoreError ?? listeningSaveError}</p>
               <button class="text-button" type="button" onclick={retryListeningSave}>Retry saving</button>
             </div>
           {/if}
-        </aside>
-        <RecentPicksPanel {databaseAvailable} {recentHistory} />
       </div>
     </section>
 
@@ -3480,6 +3481,54 @@
   }}
   onSubmit={sendInternalShareMessage}
 />
+
+<dialog
+  bind:this={listeningDialog}
+  id="listening-settings"
+  class="auth-modal listening-modal"
+  aria-labelledby="listening-settings-title"
+  aria-modal="true"
+  onclick={(event) => {
+    if (event.target !== listeningDialog) return;
+    const bounds = listeningDialog.getBoundingClientRect();
+    if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) listeningDialog.close();
+  }}
+>
+  <div class="auth-modal-head">
+    <h3 id="listening-settings-title">Listening settings</h3>
+    <button class="text-button" type="button" onclick={() => listeningDialog.close()}>Close</button>
+  </div>
+  <div class="listening-controls">
+    <button
+      class="remember-picks-control"
+      type="button"
+      role="switch"
+      aria-checked={rememberPicks}
+      onclick={changeRememberPicks}
+      disabled={!listeningReady}
+    >
+      <span>Remember previous picks</span>
+      <span class="remember-picks-track" class:remember-picks-on={rememberPicks} aria-hidden="true">
+        <span class="remember-picks-thumb"></span>
+      </span>
+    </button>
+    <button
+      class="text-button shuffle-reset-button"
+      class:shuffle-resetting={shuffleResetting}
+      type="button"
+      onclick={resetShuffleHistory}
+      disabled={activeState.status !== 'loaded' || !listeningReady || restoringListening || shuffleResetting}
+    >
+      <svg class="shuffle-reset-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <g class="shuffle-reset-arrow"><path d="M4 10a8 8 0 1 1 1.8 7M4 4v6h6" /></g>
+        <path class="shuffle-reset-check" d="m6 12 4 4 8-8" />
+      </svg>
+      Reset shuffle history
+    </button>
+    <span class="shuffle-reset-status" role="status">{shuffleResetting ? 'Shuffle history reset.' : ''}</span>
+
+  </div>
+</dialog>
 
 {#if aboutModalOpen}
   <div class="modal-backdrop" onclick={() => (aboutModalOpen = false)}>
@@ -4218,9 +4267,65 @@
 {/if}
 
 <style>
-  .listening-controls { padding: 14px 18px; color: #dfd5bc; }
-  .remember-picks-control { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; cursor: pointer; }
-  .remember-picks-control input { accent-color: #9db777; width: 18px; height: 18px; flex-shrink: 0; }
+  .shuffle-reset-button { display: inline-flex; align-items: center; gap: 8px; }
+  .shuffle-reset-icon { width: 18px; height: 18px; flex-shrink: 0; }
+  .shuffle-reset-arrow { transform-origin: 12px 12px; }
+  .shuffle-reset-check { opacity: 0; }
+  .shuffle-resetting { animation: shuffle-reset-pulse 1200ms ease-out; }
+  .shuffle-resetting .shuffle-reset-arrow { animation: shuffle-reset-turn 1200ms ease-in-out; }
+  .shuffle-resetting .shuffle-reset-check { animation: shuffle-reset-confirm 1200ms ease-in-out; }
+  .shuffle-reset-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  @keyframes shuffle-reset-turn {
+    0% { transform: rotate(0deg); opacity: 1; }
+    50% { transform: rotate(-360deg); opacity: 1; }
+    60%, 90% { transform: rotate(-360deg); opacity: 0; }
+    100% { transform: rotate(-360deg); opacity: 1; }
+  }
+  @keyframes shuffle-reset-confirm {
+    0%, 50% { opacity: 0; }
+    65%, 85% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  @keyframes shuffle-reset-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    55% { box-shadow: 0 0 0 3px rgba(157, 183, 119, 0.35), 0 0 16px rgba(157, 183, 119, 0.2); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .shuffle-resetting { animation: none; outline: 2px solid #9db777; outline-offset: 3px; }
+    .shuffle-resetting .shuffle-reset-arrow { animation: none; opacity: 0; }
+    .shuffle-resetting .shuffle-reset-check { animation: none; opacity: 1; }
+  }
+
+  .listening-modal:not([open]) { display: none; }
+  .listening-modal { width: min(504px, calc(100vw - 40px)); box-sizing: border-box; max-height: calc(100dvh - 40px); overflow-y: auto; color: #dfd5bc; }
+  .listening-modal::backdrop { background: rgba(10, 4, 2, 0.62); backdrop-filter: blur(6px); }
+  .listening-controls { color: #dfd5bc; }
+  .listening-modal .auth-modal-head h3 { font-size: 1.1rem; }
+  .remember-picks-control {
+    display: flex; align-items: center; justify-content: space-between; gap: 18px;
+    width: 100%; min-height: 44px; padding: 4px 0; border: 0; border-radius: 6px;
+    background: transparent; color: #eedcb7; font: inherit; font-size: 0.9rem;
+    text-align: left; text-transform: none; letter-spacing: normal; cursor: pointer;
+  }
+  .remember-picks-control:hover:not(:disabled) { transform: none; }
+  .remember-picks-control:focus-visible { outline: 2px solid #eedcb7; outline-offset: 4px; }
+  .remember-picks-control:disabled { opacity: 0.5; cursor: wait; }
+  .remember-picks-track {
+    display: flex; align-items: center; flex-shrink: 0; width: 48px; height: 28px;
+    padding: 3px; box-sizing: border-box; border-radius: 20px;
+    border: 1px solid rgba(238, 220, 183, 0.25); background: #21170f;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.4); transition: background 180ms ease;
+  }
+  .remember-picks-thumb {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: linear-gradient(180deg, #f0e5cc, #b9a88b);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); transition: transform 180ms ease;
+  }
+  .remember-picks-on { background: #627648; border-color: #9db777; }
+  .remember-picks-on .remember-picks-thumb { transform: translateX(20px); }
+  @media (prefers-reduced-motion: reduce) {
+    .remember-picks-track, .remember-picks-thumb { transition: none; }
+  }
   .listening-help { margin: 8px 0; font-size: 0.8rem; color: #bdb298; }
   .listening-save-error { margin-top: 10px; font-size: 0.85rem; color: #f0beaa; }
   .listening-save-error p { margin: 0 0 8px; }

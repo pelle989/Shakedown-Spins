@@ -21,7 +21,9 @@ test('guest picks survive reload, do not repeat, and clear preserves history', a
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(start);
   const random = page.getByRole('button', { name: 'Random', exact: true });
-  await expect(page.getByRole('checkbox', { name: 'Remember previous picks' })).toBeChecked();
+  await page.getByRole('button', { name: 'Listening settings' }).click();
+  await expect(page.getByRole('switch', { name: 'Remember previous picks' })).toBeChecked();
+  await page.getByRole('dialog', { name: 'Listening settings' }).getByRole('button', { name: 'Close', exact: true }).click();
   await expect(random).toBeEnabled();
   await random.click();
   await expect(random).toBeEnabled();
@@ -52,14 +54,19 @@ test('preference persists and history reset is separate from the current pick', 
   await random.click();
   await expect(random).toBeEnabled();
   const before = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).active.currentKey, guestKey);
+  await page.getByRole('button', { name: 'Listening settings' }).click();
   await page.getByRole('button', { name: 'Reset shuffle history' }).click();
-  await expect(page.getByText('Shuffle history reset for this stash.')).toBeVisible();
+  const resetButton = page.getByRole('button', { name: 'Reset shuffle history' });
+  await expect(resetButton).toHaveClass(/shuffle-resetting/);
+  await expect(page.getByText('Shuffle history reset for this stash.')).toHaveCount(0);
   const reset = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!), guestKey);
   expect(reset.active.currentKey).toBe(before);
   expect(reset.histories['shared:fixture-shared-source'].entries).toEqual({});
-  await page.getByRole('checkbox', { name: 'Remember previous picks' }).uncheck();
+  await expect(resetButton).not.toHaveClass(/shuffle-resetting/);
+  await page.getByRole('switch', { name: 'Remember previous picks' }).click();
   await page.reload();
-  await expect(page.getByRole('checkbox', { name: 'Remember previous picks' })).not.toBeChecked();
+  await page.getByRole('button', { name: 'Listening settings' }).click();
+  await expect(page.getByRole('switch', { name: 'Remember previous picks' })).not.toBeChecked();
 });
 
 test('unavailable stash explains the failure and clears its bookmark', async ({ page }) => {
@@ -181,4 +188,18 @@ test('transient restore failures retain the bookmark and retry restores filters 
   await expect(random).toBeEnabled();
   await expect(page.locator('.album-copy h3')).toHaveText(albums[1].title);
   expect(await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).active.filters.genre, guestKey)).toEqual(['Jazz']);
+});
+
+
+test('history settings opens a modal, closes with Escape, and restores focus', async ({ page }) => {
+  await page.goto(start);
+  const trigger = page.getByRole('button', { name: 'Listening settings' });
+  const dialog = page.getByRole('dialog', { name: 'Listening settings' });
+  await expect(dialog).not.toBeVisible();
+  await trigger.click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('switch', { name: 'Remember previous picks' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toBeVisible();
+  await expect(trigger).toBeFocused();
 });
